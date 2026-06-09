@@ -10,6 +10,8 @@ allowed-tools: Bash(date:*), Bash(git push:*), Bash(git status:*), Bash(git log:
 
 > **About this file.** This is the actual `SKILL.md` running in production. The 12 HARD-RULE gates are universal patterns; the specifics they encode (the user's name, CLAUDE.md cross-references, Swift/iOS examples, project workflow concepts) are illustrative and meant to be adapted.
 >
+> **Model requirement: Claude Opus-class only.** Sonnet routinely skips HARD-RULE gates even when explicit. See `README.md` § Model requirement for the rationale.
+>
 > **What to adapt for your project:**
 >
 > | Token in this file | What it means | Replace with |

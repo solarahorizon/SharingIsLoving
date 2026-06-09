@@ -81,6 +81,20 @@ The 14h block doesn't require never-failing infrastructure. It just requires the
 
 ---
 
+## Model requirement (read before adopting)
+
+This skill requires a **Claude Opus-class model** (Opus 4.x or later). It is NOT compatible with Sonnet.
+
+Tested both extensively in production:
+- **Opus** follows the HARD-RULE gates reliably — Step 0.5 clarification, Step 3a push-per-commit, Step 4.5 queue-exhaustion all fire as written.
+- **Sonnet** routinely skips the gates even when the rules are explicit and bolded. The empty-heartbeat counter, the clarification batching, the push-after-commit discipline — Sonnet treats them as suggestions rather than hard rules. No amount of phrasing tightening fixed this.
+
+The instruction-following discipline gap is the difference between blocks that ship and blocks that quietly fail. If you're forced to use Sonnet, expect to babysit; the unattended-overnight pattern won't work.
+
+This isn't a knock on Sonnet — it's a tool selection issue. Sonnet has strengths Opus doesn't. But for multi-hour autonomous discipline with binding gates, Opus is the practical floor.
+
+---
+
 ## How I kick it off
 
 I type one of these in Claude Code:
