@@ -7,7 +7,7 @@ date: 2026-05-29
 title: 196 commits accumulated locally without a single push across 6 days
 tags: [autonomous-block, git-push, push-drift, durability, github-backup]
 trigger-keywords: ["ahead N", "[ahead 196]", "unpushed commits", "GitHub doesn't show this", "is X on GitHub"]
-projects: [SolaraHorizon]
+projects: [Solara Horizon]
 related-incidents: [006]
 ---
 ```

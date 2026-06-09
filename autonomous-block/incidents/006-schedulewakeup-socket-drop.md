@@ -7,7 +7,7 @@ date: 2026-05-25
 title: ScheduleWakeup is session-bound — socket drop killed an unattended block
 tags: [autonomous-block, schedulewakeup, cron, session-bound, recovery, durable]
 trigger-keywords: ["ScheduleWakeup", "block stopped progressing", "session died", "wakeups cancelled"]
-projects: [SolaraHorizon]
+projects: [Solara Horizon]
 related-incidents: [005, 007]
 ---
 ```

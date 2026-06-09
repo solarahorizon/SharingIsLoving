@@ -7,7 +7,7 @@ date: 2026-05-31
 title: Queue exhausted at hour 3 of a 12h block; cron fired empty for 9h
 tags: [autonomous-block, queue-exhaustion, empty-heartbeat, early-wrap, audit-sweep]
 trigger-keywords: ["empty CHECKPOINT", "no actionable work", "cron firing nothing", "queue exhausted early"]
-projects: [SolaraHorizon]
+projects: [Solara Horizon]
 related-incidents: [005]
 ---
 ```

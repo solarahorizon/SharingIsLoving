@@ -2,7 +2,7 @@
 
 What it is, why it works, and the five ingredients that hold it together.
 
-This repo contains the **actual `SKILL.md`** running in production at SolaraHorizon Pty Ltd, plus the postmortem incidents that earned each rule. Happy for anyone to adapt.
+This repo contains the **actual `SKILL.md`** running in production at Solara Horizon Pty Ltd, plus the postmortem incidents that earned each rule. Happy for anyone to adapt.
 
 ```
 README.md      ← this file (the conceptual overview)
@@ -164,4 +164,4 @@ The discipline was earned the hard way — six failures, six gates. The skill is
 
 ---
 
-*Author: Lynn Yang, SolaraHorizon Pty Ltd. 2026-06-09. MIT licensed — happy for anyone to adapt.*
+*Author: Lynn Yang, Solara Horizon Pty Ltd. 2026-06-09. MIT licensed — happy for anyone to adapt.*

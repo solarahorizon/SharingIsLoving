@@ -6,7 +6,7 @@ allowed-tools: Bash(date:*), Bash(git push:*), Bash(git status:*), Bash(git log:
 
 # Autonomous Block Skill
 
-**Version:** 3.2 · **Last updated:** 2026-06-09 · **Extracted from production at SolaraHorizon Pty Ltd**
+**Version:** 3.2 · **Last updated:** 2026-06-09 · **Extracted from production at Solara Horizon Pty Ltd**
 
 > **About this file.** This is the actual `SKILL.md` running in production. The 12 HARD-RULE gates are universal patterns; the specifics they encode (the user's name, CLAUDE.md cross-references, Swift/iOS examples, project workflow concepts) are illustrative and meant to be adapted.
 >

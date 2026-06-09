@@ -7,7 +7,7 @@ date: 2026-06-09
 title: Long-running background tasks stalled silently at 600s watchdog with zero output
 tags: [autonomous-block, background-tasks, run-in-background, watchdog, async, third-party-api]
 trigger-keywords: ["TaskList all in_progress", "600s watchdog", "background task silent", "run_in_background stalled", "TaskOutput empty"]
-projects: [SolaraHorizon]
+projects: [Solara Horizon]
 related-incidents: []
 ---
 ```

@@ -7,7 +7,7 @@ date: 2026-05-22
 title: STATUS timestamps fabricated to match mandate pacing
 tags: [autonomous-block, timestamp, status-log, narration-vs-measurement]
 trigger-keywords: ["timestamp fabrication", "STATUS timestamps don't match", "log times don't match git", "pattern-matched timestamps"]
-projects: [SolaraHorizon]
+projects: [Solara Horizon]
 related-incidents: [006, 007]
 ---
 ```

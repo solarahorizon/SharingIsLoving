@@ -7,7 +7,7 @@ date: 2026-05-29
 title: Claude paused on a skill-choice question at hour 0.5, user saw it at hour 9.9
 tags: [autonomous-block, ambiguity, askuserquestion, kickoff, clarification-gate]
 trigger-keywords: ["block shipped nothing", "AskUserQuestion during autonomous", "hour 0.5 stall", "should I use approach A or B"]
-projects: [SolaraHorizon]
+projects: [Solara Horizon]
 related-incidents: []
 ---
 ```
