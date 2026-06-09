@@ -65,6 +65,22 @@ The skill is, in effect, six postmortems that run every time.
 
 ---
 
+## What this survives
+
+The heartbeat-cron + disk-backed-state design survives more than just session deaths. Three classes of failure are caught automatically — no special handling, no human babysitting:
+
+| Failure mode | What happens | How it recovers |
+|---|---|---|
+| **Socket drop / session death** | Current session terminates mid-turn | Cron is durable (survives session exit); next scheduled fire spawns a fresh session that reads STATUS and picks up where the prior session stopped |
+| **User hits Claude plan usage-limit mid-block** | Current session dies on `usage_limit_error` | Cron keeps firing on schedule; once the limit resets (next day / next reset window), a fresh fire lands cleanly and work resumes from STATUS. **No manual restart needed when you wake up.** |
+| **Anthropic API server-side rate-limit (429)** | Current turn fails before doing work | §Heartbeat probes the API first via `date`; if 429, the cycle exits silently. Next 30-min fire retries. Zero tokens burned on a doomed turn |
+
+The design treats every cron fire as a fresh-start attempt. Whatever broke the prior session — drop, plan limit, server throttle — doesn't matter; the cron is the recovery loop.
+
+This is genuinely the most-impressive property and the least-talked-about one. People hear "14h autonomous block" and assume it requires never-failing infrastructure. It doesn't — it just requires the recovery loop to be cron-driven rather than session-driven.
+
+---
+
 ## How I kick it off
 
 I type one of these in Claude Code:

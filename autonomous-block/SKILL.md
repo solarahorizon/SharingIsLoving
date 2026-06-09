@@ -167,7 +167,7 @@ Only after verification passes may Claude begin work.
 
 1. **API probe (HARD RULE — first action):** run `date "+%Y-%m-%dT%H:%M:%S%z"`.
    - Succeeds → step 2.
-   - Fails with 429/rate-limit → do nothing this cycle. Return.
+   - Fails with 429 / rate-limit / `usage_limit_error` → do nothing this cycle. Return. Next fire retries — works whether the issue is server-side throttling or the user's plan limit awaiting reset.
 
 2. **Read block state:** find the most recent `DECISION — Autonomous block start` in STATUS. Extract start timestamp, mandate hours, expected end.
    - If no active block (or wrap-up already written): cron is **orphaned**. `CronList` → `CronDelete` this cron. Return.
