@@ -26,12 +26,12 @@ Each HARD-RULE gate below was codified after a real incident. Full incident repo
 
 | Incident | Report |
 |---|---|
-| Timestamp fabrication (2026-05-22) | `docs/knowledge_base/incidents/005_autonomous_block_timestamp_fabrication_2026-05-22.md` |
-| ScheduleWakeup socket-drop (2026-05-25) | `docs/knowledge_base/incidents/006_autonomous_block_schedulewakeup_socket_drop_2026-05-25.md` |
-| Push drift, 196 commits (2026-05-23 → 29) | `docs/knowledge_base/incidents/007_autonomous_block_push_drift_196_commits_2026-05-29.md` |
-| Clarification stall, 10h / 0 lines (2026-05-29) | `docs/knowledge_base/incidents/008_autonomous_block_clarification_stall_10h_0_lines_2026-05-29.md` |
-| Empty-heartbeat cycling (2026-05-31) | `docs/knowledge_base/incidents/009_autonomous_block_empty_heartbeat_cycling_2026-05-31.md` |
-| Background-task watchdog stalls (2026-06-09) | `docs/knowledge_base/incidents/010_autonomous_block_background_task_watchdog_stalls_2026-06-09.md` |
+| Timestamp fabrication (2026-05-22) | [`incidents/005-timestamp-fabrication.md`](incidents/005-timestamp-fabrication.md) |
+| ScheduleWakeup socket-drop (2026-05-25) | [`incidents/006-schedulewakeup-socket-drop.md`](incidents/006-schedulewakeup-socket-drop.md) |
+| Push drift, 196 commits (2026-05-23 → 29) | [`incidents/007-push-drift-196-commits.md`](incidents/007-push-drift-196-commits.md) |
+| Clarification stall, 10h / 0 lines (2026-05-29) | [`incidents/008-clarification-stall-10h.md`](incidents/008-clarification-stall-10h.md) |
+| Empty-heartbeat cycling (2026-05-31) | [`incidents/009-empty-heartbeat-cycling.md`](incidents/009-empty-heartbeat-cycling.md) |
+| Background-task watchdog stalls (2026-06-09) | [`incidents/010-background-task-watchdog-stalls.md`](incidents/010-background-task-watchdog-stalls.md) |
 
 ---
 
