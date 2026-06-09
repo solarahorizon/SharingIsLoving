@@ -1,8 +1,8 @@
 # SharingIsLoving
 
-Dev lessons + workflow tips from [SolaraHorizon Pty Ltd](https://solarahorizon.com.au), in the hope they help other devs.
+The actual artefacts behind running Claude Code at production scale: skill files, postmortems, configs. **Currently featuring:** [the production `SKILL.md` and six incident reports behind running unattended 14-hour Claude Code autonomous blocks](autonomous-block/).
 
-We're building several products in parallel (a kid's math game, a health app, a content platform) using Claude Code as the primary dev partner. Some patterns took painful incidents to land. This repo is where we share what worked, the postmortems that led to each rule, and the actual artefacts (skill files, templates, configs) we use day-to-day.
+[SolaraHorizon Pty Ltd](https://solarahorizon.com.au) is building several consumer products in parallel (a kid's math game, a health app, a content platform) with Claude Code as the primary dev partner. Some patterns took painful incidents to land. This repo is where we share what worked, with attribution to the failure that earned each rule.
 
 ---
 
@@ -20,7 +20,7 @@ Browse a topic folder. Each has its own README explaining the pattern + the arte
 
 ## Contributing
 
-This repo is one-direction: we share what we've learned. We don't take PRs on the artefacts themselves — they reflect our specific production context. But happy to discuss patterns: open an issue, or reach out on LinkedIn.
+One-way share: we publish what we've learned and don't take PRs on the artefacts themselves (they reflect our specific production context). Issues + LinkedIn DMs welcome for discussion.
 
 ## License
 

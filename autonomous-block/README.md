@@ -6,7 +6,7 @@ This repo contains the **actual `SKILL.md`** running in production at SolaraHori
 
 ```
 README.md      ← this file (the conceptual overview)
-SKILL.md       ← the skill itself (~305 lines, v3.2)
+SKILL.md       ← the skill itself (~330 lines, v3.2)
 incidents/
   TEMPLATE.md  ← lazy-load incident template
   005-*.md     ← one sanitised example incident
@@ -20,9 +20,9 @@ LICENSE        ← MIT
 A wall-clock mandate where Claude Code works through a backlog unattended for N hours — "keep going for 14 hours while I'm out" — and ships actual production-ready commits without you having to babysit each tool use.
 
 Distinct from:
-- **Interactive turns** — Claude does one task, asks for confirmation, you respond. Bounded by your presence.
-- **Single long task** — Claude works on one thing for an hour. No queue management.
-- **`/loop`** — a built-in repeater that re-fires the same prompt; different shape. (Full comparison at the end of this doc.)
+- **Interactive turns.** Claude does one task, asks for confirmation, you respond. Bounded by your presence.
+- **Single long task.** Claude works on one thing for an hour. No queue management.
+- **`/loop`.** A built-in repeater that re-fires the same prompt; different shape. Full comparison at the end of this doc.
 
 An autonomous block is closer to giving a junior engineer a backlog + their own laptop + a clear deadline.
 
@@ -30,7 +30,7 @@ An autonomous block is closer to giving a junior engineer a backlog + their own 
 
 ## The five ingredients
 
-1. **Auto-mode on** — Claude makes decisions without pausing to ask for each tool use. Set in `~/.claude/settings.json`:
+1. **Auto-mode on.** Claude makes decisions without pausing to ask for each tool use. Set in `~/.claude/settings.json`:
 
    ```json
    { "permissions": { "defaultMode": "auto" } }
@@ -38,13 +38,13 @@ An autonomous block is closer to giving a junior engineer a backlog + their own 
 
    Without this, every Bash call halts the block waiting for your approval.
 
-2. **A "heartbeat" cron** that fires every 30 min via `CronCreate` — checks the session is alive, resumes work if it dropped, deletes itself when the mandate expires. Survives socket drops + Anthropic rate-limits. The cron is the safety net that catches the failure mode where the session silently dies overnight.
+2. **A "heartbeat" cron** that fires every 30 min via `CronCreate`. Checks the session is alive, resumes work if it dropped, deletes itself when the mandate expires. Survives socket drops, server-side rate limits, and your Claude plan resetting mid-block. The cron is the safety net that catches the failure mode where the session silently dies overnight.
 
-3. **Disk-backed backlog** (`BACKLOG.md` + `STATUS.md`) — Claude reads what to work on from disk, not from conversation memory. A dead session can be revived from these files alone. The backlog must always reflect current state; every completed task gets marked done in the same commit as the work.
+3. **Disk-backed backlog** (`BACKLOG.md` + `STATUS.md`). Claude reads what to work on from disk, not from conversation memory. A dead session can be revived from these files alone. The backlog must always reflect current state; every completed task gets marked done in the same commit as the work.
 
-4. **Push-per-commit discipline** — every `git commit` is immediately followed by `git push origin <branch>`. No batching ("I'll push at the end"). GitHub is the durable backup; nothing is "shipped" until pushed. This sounds obvious but it broke 196 times across 6 days before becoming a hard rule.
+4. **Push-per-commit discipline.** Every `git commit` is immediately followed by `git push origin <branch>`. No batching ("I'll push at the end"). GitHub is the durable backup; nothing is "shipped" until pushed. This sounds obvious but it broke 196 times across 6 days before becoming a hard rule.
 
-5. **A custom `autonomous-block` skill** that orchestrates all the above — locks a real start timestamp via `date` (not made up), runs an instruction-clarification gate so ambiguity is resolved while you're still at your desk, arms the heartbeat cron BEFORE work begins, writes per-work-unit commits, applies a queue-exhaustion gate before authorising an early wrap, does an honest wrap-up at the end with actual elapsed time. The skill (`SKILL.md` in this repo) encodes every lesson the project has learned.
+5. **A custom `autonomous-block` skill** that orchestrates all the above. It locks a real start timestamp via `date` (not made up), runs an instruction-clarification gate so ambiguity is resolved while you're still at your desk, arms the heartbeat cron BEFORE work begins, writes per-work-unit commits, applies a queue-exhaustion gate before authorising an early wrap, and does an honest wrap-up at the end with actual elapsed time. The skill (`SKILL.md` in this repo) encodes every lesson the project has learned.
 
 ---
 
@@ -77,7 +77,7 @@ The heartbeat-cron + disk-backed-state design survives more than just session de
 
 The design treats every cron fire as a fresh-start attempt. Whatever broke the prior session — drop, plan limit, server throttle — doesn't matter; the cron is the recovery loop.
 
-This is genuinely the most-impressive property and the least-talked-about one. People hear "14h autonomous block" and assume it requires never-failing infrastructure. It doesn't — it just requires the recovery loop to be cron-driven rather than session-driven.
+The 14h block doesn't require never-failing infrastructure. It just requires the recovery loop to be cron-driven rather than session-driven.
 
 ---
 
@@ -119,7 +119,7 @@ If you want to try this in your own Claude Code:
 5. **A real backlog file** (`BACKLOG.md`) the skill can read + update. This is the most underrated ingredient — the discipline of "the backlog lives on disk, not in Claude's head" is what makes dead-session-recovery work
 6. **An incident log** (`docs/knowledge_base/incidents/*.md` or wherever) the skill references for full-context postmortems. The skill stays under 500 lines by linking to incident files rather than narrating each in-line — load only what you need
 
-The skill is ~305 lines of project-specific discipline. The first version was 80 lines and didn't catch the timestamp-fabrication failure. Every line that was added was added because something broke.
+The skill is around 330 lines of project-specific discipline. Each gate was added in response to something that broke. v1.0 itself was the response to the timestamp-fabrication failure; the pre-skill informal version offered no protection.
 
 ---
 
