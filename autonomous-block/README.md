@@ -1,0 +1,151 @@
+# How to run a 14-hour Claude Code autonomous block
+
+What it is, why it works, and the five ingredients that hold it together.
+
+This repo contains the **actual `SKILL.md`** running in production at SolaraHorizon Pty Ltd, plus the postmortem incidents that earned each rule. Happy for anyone to adapt.
+
+```
+README.md      ← this file (the conceptual overview)
+SKILL.md       ← the skill itself (~305 lines, v3.2)
+incidents/
+  TEMPLATE.md  ← lazy-load incident template
+  005-*.md     ← one sanitised example incident
+LICENSE        ← MIT
+```
+
+---
+
+## What's an "autonomous block"?
+
+A wall-clock mandate where Claude Code works through a backlog unattended for N hours — "keep going for 14 hours while I'm out" — and ships actual production-ready commits without you having to babysit each tool use.
+
+Distinct from:
+- **Interactive turns** — Claude does one task, asks for confirmation, you respond. Bounded by your presence.
+- **Single long task** — Claude works on one thing for an hour. No queue management.
+- **`/loop`** — a built-in repeater that re-fires the same prompt; different shape. (Full comparison at the end of this doc.)
+
+An autonomous block is closer to giving a junior engineer a backlog + their own laptop + a clear deadline.
+
+---
+
+## The five ingredients
+
+1. **Auto-mode on** — Claude makes decisions without pausing to ask for each tool use. Set in `~/.claude/settings.json`:
+
+   ```json
+   { "permissions": { "defaultMode": "auto" } }
+   ```
+
+   Without this, every Bash call halts the block waiting for your approval.
+
+2. **A "heartbeat" cron** that fires every 30 min via `CronCreate` — checks the session is alive, resumes work if it dropped, deletes itself when the mandate expires. Survives socket drops + Anthropic rate-limits. The cron is the safety net that catches the failure mode where the session silently dies overnight.
+
+3. **Disk-backed backlog** (`BACKLOG.md` + `STATUS.md`) — Claude reads what to work on from disk, not from conversation memory. A dead session can be revived from these files alone. The backlog must always reflect current state; every completed task gets marked done in the same commit as the work.
+
+4. **Push-per-commit discipline** — every `git commit` is immediately followed by `git push origin <branch>`. No batching ("I'll push at the end"). GitHub is the durable backup; nothing is "shipped" until pushed. This sounds obvious but it broke 196 times across 6 days before becoming a hard rule.
+
+5. **A custom `autonomous-block` skill** that orchestrates all the above — locks a real start timestamp via `date` (not made up), runs an instruction-clarification gate so ambiguity is resolved while you're still at your desk, arms the heartbeat cron BEFORE work begins, writes per-work-unit commits, applies a queue-exhaustion gate before authorising an early wrap, does an honest wrap-up at the end with actual elapsed time. The skill (`SKILL.md` in this repo) encodes every lesson the project has learned.
+
+---
+
+## The six failures that earned the rules
+
+Every gate in the skill maps to a real incident. Each failure → one rule encoded.
+
+| Date | What broke | Rule added |
+|---|---|---|
+| 2026-05-22 | Claude fabricated STATUS timestamps to match a 6h mandate (the work "felt like 6h", so the timestamps did too) | `date` lock — real `date` output is the contract; no fabricated timestamps anywhere |
+| 2026-05-25 | 12h block lost 8.5h — used `ScheduleWakeup` instead of `CronCreate`; session died at 3.5h with no recovery; the block didn't resume until I noticed in the morning | Heartbeat cron via `CronCreate` (durable: true) — armed and `CronList`-verified BEFORE any work starts |
+| 2026-05-23 → 29 | 196 commits accumulated locally without a single `git push` across 6 days. Discovered only when I asked "is X on GitHub?" — GitHub backup window = 0 for solo work | Push-per-commit gate — every `commit` is followed by `push` in the same turn; treat as one atomic action |
+| 2026-05-29 | 10h block produced 0 lines of code — Claude paused at hour 0.5 on a skill-choice question and waited; I didn't see it until hour 9.9 | Step 0.5 instruction-clarification gate — all genuine ambiguities batched into ONE question BEFORE the cron arms, while user is still at desk |
+| 2026-06-01 | Heartbeat fired for hours after the real queue was exhausted; STATUS filled with empty CHECKPOINTs; tokens burned for no work | Step 4.5 queue-exhaustion gate — after 3 consecutive empty heartbeats, run a 5-criteria sweep; if all pass, wrap early; if any fail, log which + resume |
+| 2026-06-09 | 5 background tasks stalled silently at the 600s watchdog limit. Quota burned, no output, no error surfaced | Avoid long-running background tasks — prefer synchronous Bash <10min; for 10+ min chunk into commits-per-piece; if genuinely async required, probe the API in a fresh process first |
+
+The skill is, in effect, six postmortems that run every time.
+
+---
+
+## How I kick it off
+
+I type one of these in Claude Code:
+
+- `/autonomous-block 14h work on X`
+- "keep going for 14 hours"
+- "go autonomous for 14 hours while I'm out"
+- "run overnight"
+
+The skill detects the phrasing, runs the Step 0.5 clarification gate (batches any blocking ambiguities into one question), arms the cron, locks the timestamp via `date`, drafts a prioritised backlog to disk if one doesn't exist, then starts working in 2–3 commit units between heartbeats. Each commit is pushed immediately. When the queue feels empty, the Step 4.5 5-criteria gate runs before any wrap is authorised. The wrap-up at the end is honest about whether the mandate was satisfied — both in wall-clock terms and in queue-exhaustion terms.
+
+---
+
+## What the discipline catches
+
+Real failure modes the rules block:
+
+- **"Natural completion feeling = done"** — Claude finishes the queue at 3h of a 14h mandate and starts wrapping. The rule: if elapsed < 80%, the queue isn't exhausted — your imagination is. Refill the queue. (Step 4 mid-block check.)
+- **"Imagination exhausted" masquerading as "queue exhausted"** — wrapping at 30% because nothing visible remains in the backlog, when an audit sweep would surface dozens of latent items. The rule: 5-criteria gate (no-commits window + comprehensive audit + briefing current + no surfaced blocker + remaining work all decision-gated) must ALL pass before early wrap is authorised. (Step 4.5.)
+- **Ambiguity-stall before the cron arms** — Claude pauses 30 min in to ask "should I use approach A or B?" and waits 9 hours for an answer. The rule: resolve all genuine ambiguity BEFORE arming the cron, while user is still at desk. (Step 0.5.)
+- **Large turns accumulating context** — a turn that does 5–6 work units risks socket drop mid-turn. The cron brings you back every 30 min regardless; trust it. Keep turns to 2–3 units.
+- **Skipping reviews on "mechanical" changes** — when the backlog feels like grunt work, the temptation is to skip pre-commit review. Don't. A 10h autonomous block proved that "small" changes ship unreviewed bugs at the same rate as big ones.
+- **Push drift on the last commit before sleep** — "I'll push when I wake up" loses commits if the session dies overnight. Push-per-commit catches this. (Step 3a.)
+- **Background tasks stalling at watchdog limits** — fire-and-forget long-running tasks die silently at 600s with no error surfaced. The rule: prefer sync, chunk if long, probe before launching async. (Codified after 5 stalled tasks in one block.)
+
+---
+
+## What you need to set up
+
+If you want to try this in your own Claude Code:
+
+1. **Auto-mode on** in `~/.claude/settings.json` (`"defaultMode": "auto"`)
+2. **Allow-list** for common Bash commands in `.claude/settings.local.json` so each call doesn't prompt (cumulative list grows over time)
+3. **`CronCreate` + `CronList` + `CronDelete` tools** — standard Claude Code primitives once the right plugins are enabled
+4. **The `SKILL.md` from this repo** copied to `.claude/skills/autonomous-block/SKILL.md` in your project, adapted to your conventions (see the disclaimer at the top of `SKILL.md`)
+5. **A real backlog file** (`BACKLOG.md`) the skill can read + update. This is the most underrated ingredient — the discipline of "the backlog lives on disk, not in Claude's head" is what makes dead-session-recovery work
+6. **An incident log** (`docs/knowledge_base/incidents/*.md` or wherever) the skill references for full-context postmortems. The skill stays under 500 lines by linking to incident files rather than narrating each in-line — load only what you need
+
+The skill is ~305 lines of project-specific discipline. The first version was 80 lines and didn't catch the timestamp-fabrication failure. Every line that was added was added because something broke.
+
+---
+
+## How is this different from `/loop`?
+
+Both are unattended, but different shapes:
+
+| Dimension | `/loop` (built-in) | `/autonomous-block` (custom) |
+|---|---|---|
+| **What it does** | Re-fires the SAME prompt on an interval | Drains a VARIED backlog within a wall-clock window |
+| **Per-cycle work** | Same task repeats ("check deploy", "poll PRs") | Different task each turn (Claude picks next item from `BACKLOG.md`) |
+| **State across cycles** | Mostly stateless — each tick independent | Heavily stateful — `BACKLOG.md` + `STATUS.md` persist progress |
+| **Stop condition** | User cancels OR condition met | Wall-clock elapsed (Nh) OR queue exhausted via 5-criteria gate |
+| **Recovery from session death** | Next interval fires retries the same prompt | Heartbeat cron + `STATUS` DECISION-start entry tells next session WHERE to resume |
+| **Commit discipline** | None built-in | Push-per-commit hard rule; `date`-locked timestamps |
+| **Built-in or custom?** | Built-in Claude Code skill | Custom project skill (~305 lines) |
+| **Best for** | Monitoring, polling, repeated checks | Multi-task dev work, backlog drain |
+
+**When to use which:**
+
+- **`/loop`** when the work is "the same thing, again":
+  - "Check CI status every 5 min until green"
+  - "Keep running `/babysit-prs`"
+  - "Watch this log file for errors"
+
+- **`/autonomous-block`** when the work is "many different things from a queue":
+  - "Build out a feature + its docs for 14 hours"
+  - "Go autonomous for 6 hours, work through items tagged for autonomous work"
+  - "Run overnight, ship as much of the backlog as you can"
+
+**They can compose.** During an autonomous block, Claude might internally use `/loop`-style polling (e.g., "poll the job_id every 5s until done"). The outer container is the block; `/loop` is one tool inside it.
+
+**One-line distinction:** `/loop` is a **repeater** — same prompt, interval-driven, lightweight. `/autonomous-block` is a **drainer** — varied queue, time-bound, heavyweight (cron + backlog + commits + clarification gate + queue-exhaustion gate + wrap-up).
+
+---
+
+## TL;DR
+
+Auto-mode + a heartbeat cron + a disk-backed backlog + push-per-commit + a custom orchestration skill that ties it all together.
+
+The discipline was earned the hard way — six failures, six gates. The skill is the postmortem that runs every time.
+
+---
+
+*Author: Lynn Yang, SolaraHorizon Pty Ltd. 2026-06-09. MIT licensed — happy for anyone to adapt.*
