@@ -1,22 +1,37 @@
 # SharingIsLoving
 
-The actual artefacts behind running Claude Code at production scale: skill files, postmortems, configs. **Currently featuring:** [the production `SKILL.md` and six incident reports behind running unattended 14-hour Claude Code autonomous blocks](autonomous-block/).
+The actual artefacts behind running Claude Code at production scale. Skill files used day-to-day, postmortems behind every rule, configs and patterns that survived contact with reality.
 
-[Solara Horizon Pty Ltd](https://solarahorizon.com.au) is building several consumer products in parallel (a kid's math game, a health app, a content platform) with Claude Code as the primary dev partner. Some patterns took painful incidents to land. This repo is where we share what worked, with attribution to the failure that earned each rule.
+Most AI workflow content is theoretical — what someone wishes were true, polished into a thought-leadership post. This repo is the opposite. Everything here is in active production use at [Solara Horizon Pty Ltd](https://solarahorizon.com.au), across four consumer-app projects shipping in parallel. Patterns earned the hard way; postmortems included.
+
+**Start here → [autonomous-block/](autonomous-block/)**
 
 ---
 
-## Topics
+## Currently featured
 
-- **[autonomous-block/](autonomous-block/)** — How to run multi-hour Claude Code autonomous blocks. Includes the actual `SKILL.md` in production, plus the six postmortem incidents that earned each rule. **Start here if you've ever asked "can I leave Claude running overnight?"**
+### [autonomous-block/](autonomous-block/) — Running Claude Code unattended for multi-hour blocks
 
-*More topics added as we ship them.*
+Unattended Claude Code blocks of 4–14 hours, running almost every night across four parallel projects. The framework treats the AI agent as a distributed system: durable recovery loops, watchdogs, queue-exhaustion gates, state persistence on disk, instruction-clarification gates that fire before the cron arms.
+
+What's in the package:
+
+- The production `SKILL.md` (v3.2, ~330 lines) with adaptation guide
+- Six incident postmortems with grep-able frontmatter (so future Claude sessions can find them when stuck)
+- An incident template for your own postmortem log
+- A model requirement note (Opus-class only — Sonnet skips the gates)
+
+---
+
+## What's coming
+
+More topics ship as they get codified. Likely next: incident-log architecture for AI agents, multi-agent code review pipelines, on-device foundation-model fallback patterns.
 
 ---
 
 ## How to use this repo
 
-Browse a topic folder. Each has its own README explaining the pattern + the artefacts (skill files, templates, configs) you can copy + adapt. Everything is MIT-licensed; no attribution required.
+Browse a topic folder. Each has its own README explaining the pattern, plus the artefacts you can copy and adapt. Everything is MIT-licensed (see [LICENSE](LICENSE) for terms).
 
 ## Contributing
 
@@ -28,4 +43,4 @@ One-way share: we publish what we've learned and don't take PRs on the artefacts
 
 ---
 
-*Lynn Yang, Solara Horizon Pty Ltd. 2026-06-09.*
+*Lynn Yang, Solara Horizon Pty Ltd. 2026-06-10.*
