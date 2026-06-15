@@ -5,7 +5,8 @@ sprites**. These solve the unglamorous problems you hit the moment you try to *u
 art in an actual 2D game — drift, baked-in backgrounds, sprite sheets, and "is this animation
 actually looping?" — that image editors and prompt tricks don't fix cleanly.
 
-Earned in production on a chibi-platformer art pipeline (generate → clean → slice → use).
+Written for a real chibi-platformer art pipeline (generate → clean → slice → use) — each one
+to fix a specific problem the moment it showed up in the actual game build.
 
 ## Setup
 
@@ -18,7 +19,7 @@ All tools take real CLI args; run any with `--help`.
 ## Tools
 
 ### `align_walk.py` — de-drift a looping animation + knock out its white background
-The standout. AI tools love to author a walk/idle cycle that **drifts across the frame** (so the
+Does the most work of the four. AI tools love to author a walk/idle cycle that **drifts across the frame** (so the
 loop visibly jerks back on repeat) on an **opaque white background**. This:
 1. **De-drifts** — re-anchors every frame to a constant colour-mass *centroid* so the body stays
    put while the legs move (a true in-place loop). Smooth because the centroid drift is monotonic.
