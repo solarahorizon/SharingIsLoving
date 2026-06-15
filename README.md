@@ -1,25 +1,20 @@
 # SharingIsLoving
 
-The actual artefacts behind running Claude Code at production scale. Skill files used day-to-day, postmortems behind every rule, configs and patterns that survived contact with reality.
+The actual artefacts behind running Claude Code at production scale. Skill files used day-to-day, postmortems behind every rule, configs and patterns that survived contact with reality — plus the small tools that earn their keep in the pipeline.
 
 Most AI workflow content is theoretical — what someone wishes were true, polished into a thought-leadership post. This repo is the opposite. Everything here is in active production use at [Solara Horizon Pty Ltd](https://solarahorizon.com.au), across four consumer-app projects shipping in parallel. Patterns earned the hard way; postmortems included.
 
-**Start here → [autonomous-block/](autonomous-block/)**
-
 ---
 
-## Currently featured
+## Contents
 
-### [autonomous-block/](autonomous-block/) — Running Claude Code unattended for multi-hour blocks
+### `skills/` — Claude Code skills used in production
 
-Unattended Claude Code blocks of 4–14 hours, running almost every night across four parallel projects. The framework treats the AI agent as a distributed system: durable recovery loops, watchdogs, queue-exhaustion gates, state persistence on disk, instruction-clarification gates that fire before the cron arms.
+- **[skills/autonomous-block/](skills/autonomous-block/)** — running Claude Code unattended for multi-hour blocks (4–14h, almost nightly). Treats the agent as a distributed system: durable recovery loops, watchdogs, queue-exhaustion gates, on-disk state, clarification gates that fire before the cron arms. Ships the production `SKILL.md` (v3.2), six incident postmortems with grep-able frontmatter, an incident template, and a model-requirement note (Opus-class only).
 
-What's in the package:
+### `tools/` — small scripts that earn their keep
 
-- The production `SKILL.md` (v3.2, ~330 lines) with adaptation guide
-- Six incident postmortems with grep-able frontmatter (so future Claude sessions can find them when stuck)
-- An incident template for your own postmortem log
-- A model requirement note (Opus-class only — Sonnet skips the gates)
+- **[tools/ai-art-cleanup/](tools/ai-art-cleanup/)** — turn AI-generated / exported art into game-ready sprites. `align_walk.py` (de-drift a looping animation + knock out its white background, preserving interior whites), `measure_frames.py` (quantify animation drift), `slice_sheet.py` (sprite sheet → individual PNGs + gallery), `montage.py` (side-by-side comparison strips). The drift + transparent-key combo solves problems image editors and prompt tricks don't.
 
 ---
 
@@ -31,7 +26,7 @@ More topics ship as they get codified. Likely next: incident-log architecture fo
 
 ## How to use this repo
 
-Browse a topic folder. Each has its own README explaining the pattern, plus the artefacts you can copy and adapt. Everything is MIT-licensed (see [LICENSE](LICENSE) for terms).
+Browse `skills/` or `tools/`. Each artefact folder has its own README explaining the pattern (and, for tools, a `requirements.txt` + `--help` on every script). Everything is MIT-licensed (see [LICENSE](LICENSE) for terms).
 
 ## Contributing
 
