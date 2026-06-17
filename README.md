@@ -28,6 +28,8 @@ More topics ship as they get codified. Likely next: incident-log architecture fo
 
 Browse `skills/` or `tools/`. Each artefact folder has its own README explaining the pattern (and, for tools, a `requirements.txt` + `--help` on every script). Everything is MIT-licensed (see [LICENSE](LICENSE) for terms).
 
+New here, or curious what belongs in this repo and how each artefact is structured? See **[HOW-THIS-WORKS.md](HOW-THIS-WORKS.md)**.
+
 ## Contributing
 
 One-way share: we publish what we've learned and don't take PRs on the artefacts themselves (they reflect our specific production context). Issues + LinkedIn DMs welcome for discussion.
