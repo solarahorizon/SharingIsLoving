@@ -6,6 +6,20 @@ Most AI workflow content is theoretical — what someone wishes were true, polis
 
 ---
 
+## The idea in one line
+
+**Treat the AI agent as a distributed system, not a chat** — recovery loops, watchdogs, state persistence, idempotent restart. Design *for* failure instead of against it, and the failure modes stop surprising you.
+
+## Proof, not theory
+
+- **`autonomous-block` runs 4–14h unattended, almost nightly,** across four parallel consumer-app projects — shipping production commits with no babysitting.
+- A **~330-line skill where every line traces to a real incident** — six postmortems included (*196 commits sat unpushed for 6 days*; *a 10-hour block shipped 0 lines because the agent stalled on a question at minute 30*). Each failure → one gate; the skill is the postmortem that runs every time.
+- It **survives** session death, a Claude plan hitting its usage limit mid-block, and server-side 429s — recovery is **cron-driven, not session-driven**, so there's no manual restart when you wake up.
+
+> 11 years building fault-tolerant systems at ANZ & KPMG (banking data migration, national scale). With AI agents the failure surface is wildly different; the discipline is the same.
+
+---
+
 ## Contents
 
 ### `skills/` — Claude Code skills used in production
