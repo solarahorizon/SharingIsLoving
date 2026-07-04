@@ -29,6 +29,7 @@ Most AI workflow content is theoretical — what someone wishes were true, polis
 ### `tools/` — small scripts that pull their weight
 
 - **[tools/ai-art-cleanup/](tools/ai-art-cleanup/)** — turn AI-generated / exported art into game-ready sprites. `align_walk.py` (de-drift a looping animation + knock out its white background, preserving interior whites), `measure_frames.py` (quantify animation drift), `slice_sheet.py` (sprite sheet → individual PNGs + gallery), `montage.py` (side-by-side comparison strips). The drift + transparent-key combo solves problems image editors and prompt tricks don't.
+- **[tools/mcp-disable/](tools/mcp-disable/)** — disable every MCP server across ALL your Claude Code projects in one run. Born from a context audit: two connectors used once (or never) were injecting 89 tool definitions (~2-3K tokens) into every session, in every project — and `/mcp` only fixes the current project. Auto-discovers servers from `~/.claude.json`, disables everywhere, `--enable` reverses, timestamped backup before every write. Stdlib only.
 
 ---
 
