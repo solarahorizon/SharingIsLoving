@@ -12,7 +12,8 @@ we measured what every Claude Code session was loading before any work started.
 Two MCP connectors — an image-generation service and Blender — were injecting
 **89 tool definitions plus instruction blobs (~2-3K tokens) into every single
 session, in every project**. The image connector had been used in exactly one
-session, ever. Blender had never been used at all.
+session, ever. Blender hadn't been touched in months of daily work on the
+audited project.
 
 That's a tax on every session start *and* on every prompt-cache expiry, paid
 silently, forever, in every project on the machine.
