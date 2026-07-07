@@ -25,6 +25,7 @@ Most AI workflow content is theoretical — what someone wishes were true, polis
 ### `skills/` — Claude Code skills used in production
 
 - **[skills/autonomous-block/](skills/autonomous-block/)** — running Claude Code unattended for multi-hour blocks (4–14h, almost nightly). Treats the agent as a distributed system: durable recovery loops, watchdogs, queue-exhaustion gates, on-disk state, clarification gates that fire before the cron arms. Ships the production `SKILL.md` (v3.2), six incident postmortems with grep-able frontmatter, an incident template, and a model-requirement note (Opus-class only).
+- **[skills/local-artifact/](skills/local-artifact/)** — keep Claude's visual "artifacts" on your own disk instead of publishing them to a hosted URL on a vendor's servers. Renders a status board / run wrap-up / before-after gallery as a single self-contained `.html` (every image a `data:` URI, all CSS/JS inline) written into your repo — portable, commit-safe, offline-viewable, nothing sent to a third party. Carries a blocking self-containment gate and a real-screenshots-only rule (with the postmortem that earned it). Stdlib + Pillow.
 
 ### `tools/` — small scripts that pull their weight
 
