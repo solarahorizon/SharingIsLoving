@@ -7,7 +7,7 @@ allowed-tools: Read Write Edit Glob Grep Bash Skill
 
 # Local Artifact Skill
 
-Produce a polished, **fully self-contained** HTML page **as a local file** — never published to a vendor's servers. This is a privacy-preserving replacement for a hosted "Artifact"-style tool that mints a URL on someone else's infrastructure.
+Produce a polished, **fully self-contained** HTML page **as a local file** — never published to a vendor's servers. This is a local-first, privacy-preserving counterpart to Claude Code's built-in **`Artifact` tool** (which publishes each page to a hosted `claude.ai/code/artifact/<uuid>` URL on Anthropic's servers): it reuses Anthropic's **`artifact-design`** craft for the *look* and only swaps the *delivery* — `Write` to disk instead of upload.
 
 ## Why this exists
 
