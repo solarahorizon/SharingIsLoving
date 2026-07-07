@@ -19,7 +19,7 @@ A visual page fixes that. Instead of reading a wall of text, you **see the resul
 
 - **A status board or run wrap-up** — what got done, what's merged vs. needs-your-eyes, laid out so you scan it in seconds instead of re-reading a transcript.
 - **Real screenshots** — Claude captures the actual app/simulator and drops the images straight into the page, so you inspect what really rendered (scaling, clipping, a UI change) instead of trusting a text description of it.
-- **Diagrams** — an architecture sketch, a before/after, a decision tree — rendered visually, right next to the explanation.
+- **Diagrams** — an architecture sketch, a before/after, a decision tree, **an ERD / data-model design** — rendered visually (inline SVG), right next to the explanation. Data modelling is where this shines: you iterate on a schema by *looking* at the entities and relationships, not by re-reading a text dump of them — and a data model is exactly the kind of sensitive design you'd rather keep on your own disk than publish to a third-party URL.
 - **A decision gallery** — options side by side with the trade-offs, so you can actually choose from pictures rather than paragraphs.
 
 It's the difference between reading a report and looking at a dashboard. When you just want to *understand what happened* and decide what's next, a page beats a scrollback.
