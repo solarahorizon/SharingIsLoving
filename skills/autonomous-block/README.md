@@ -1,16 +1,18 @@
 # How to run a 14-hour Claude Code autonomous block
 
-What it is, why it works, and the five ingredients that hold it together.
+What it is, why it works, and the five ingredients that hold it together — plus the clean-shell hook that keeps it from stalling on itself.
 
 This repo contains the **actual `SKILL.md`** running in production at Solara Horizon Pty Ltd, plus the postmortem incidents that earned each rule. Happy for anyone to adapt.
 
 ```
-README.md      ← this file (the conceptual overview)
-SKILL.md       ← the skill itself (~330 lines, v3.2)
+README.md                     ← this file (the conceptual overview)
+SKILL.md                      ← the skill itself (~330 lines, v3.2)
+hooks/
+  pre-bash-discipline.py      ← the "clean-shell" PreToolUse hook
 incidents/
-  TEMPLATE.md  ← lazy-load incident template
-  005-*.md     ← one sanitised example incident
-LICENSE        ← MIT
+  TEMPLATE.md                 ← lazy-load incident template
+  005-*.md                    ← one sanitised example incident
+LICENSE                       ← MIT
 ```
 
 ---
@@ -78,6 +80,27 @@ The heartbeat-cron + disk-backed-state design survives more than just session de
 The design treats every cron fire as a fresh-start attempt. Whatever broke the prior session — drop, plan limit, server throttle — doesn't matter; the cron is the recovery loop.
 
 The 14h block doesn't require never-failing infrastructure. It just requires the recovery loop to be cron-driven rather than session-driven.
+
+---
+
+## The clean-shell hook — blocking the commands that stall a block
+
+The five ingredients keep the block *running*; this hook keeps it from *stalling on itself*.
+
+The worst autonomous-run failure is silent: the agent issues a command shape that trips a permission prompt the allow-list **can't** silence, or that hangs long enough to hit a stream-idle timeout. Either one freezes the block waiting on a human who isn't there. "Just remember the good form" wasn't enough — it decayed under context pressure — so it became a hard `PreToolUse` hook that blocks the shape and names the prompt-free equivalent.
+
+`hooks/pre-bash-discipline.py` in this repo is the actual hook (MIT — adapt to your own stack). What it blocks and what to do instead:
+
+| Blocked | Why it stalls | Prompt-free equivalent |
+|---|---|---|
+| `cd <dir> && git/gh` | trips the "untrusted hooks from target directory" prompt | `git -C <abs-path> <cmd>` in one call |
+| `\| head/grep/wc/tail/…` | output is invisible to the tool result + often huge | the Grep tool (count mode) / Read tool (offset+limit) |
+| `2>/dev/null` | hides the errors you actually need to see | drop the redirect |
+| `$(...)` / backticks | nests a command the tool can't audit | run it as its own call, reuse the literal value |
+| `until/while … sleep` | burns tokens, can idle past the stream timeout | the Monitor tool |
+| `; echo $?` | redundant | the Bash result already carries the exit code |
+
+Every blocked form has a prompt-free equivalent that does the same thing — so it's not a loss of capability, just the road that skips the tollbooth. Wire it as a `PreToolUse` hook on the `Bash` matcher in `.claude/settings.json` (snippet at the top of the file). It runs on **every** Bash call, not just during a block: the habit only holds during a block if it holds in every session.
 
 ---
 
