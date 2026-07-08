@@ -11,8 +11,8 @@ hooks/
   pre-bash-discipline.py      ← the "clean-shell" PreToolUse hook
 incidents/
   TEMPLATE.md                 ← lazy-load incident template
-  005-*.md                    ← one sanitised example incident
-LICENSE                       ← MIT
+  005-010.md                  ← six sanitised postmortems (one per rule)
+(LICENSE — MIT, at the repo root)
 ```
 
 ---
@@ -44,9 +44,11 @@ An autonomous block is closer to giving a junior engineer a backlog + their own 
 
 3. **Disk-backed backlog** (`BACKLOG.md` + `STATUS.md`). Claude reads what to work on from disk, not from conversation memory. A dead session can be revived from these files alone. The backlog must always reflect current state; every completed task gets marked done in the same commit as the work.
 
-4. **Push-per-commit discipline.** Every `git commit` is immediately followed by `git push origin <branch>`. No batching ("I'll push at the end"). GitHub is the durable backup; nothing is "shipped" until pushed. This sounds obvious but it broke 196 times across 6 days before becoming a hard rule.
+4. **Push-per-commit discipline.** Every `git commit` is immediately followed by `git push origin <branch>`. No batching ("I'll push at the end"). GitHub is the durable backup; nothing is "shipped" until pushed. This sounds obvious, but 196 commits piled up unpushed across 6 days before it became a hard rule.
 
 5. **A custom `autonomous-block` skill** that orchestrates all the above. It locks a real start timestamp via `date` (not made up), runs an instruction-clarification gate so ambiguity is resolved while you're still at your desk, arms the heartbeat cron BEFORE work begins, writes per-work-unit commits, applies a queue-exhaustion gate before authorising an early wrap, and does an honest wrap-up at the end with actual elapsed time. The skill (`SKILL.md` in this repo) encodes every lesson the project has learned.
+
+   The end-of-block wrap-up pairs naturally with the companion **`local-artifact`** skill (also in this repo): instead of a wall of terminal text, the block's outcome renders as a single self-contained HTML page you can open, keep, and version-control — a scannable summary of what shipped overnight. Wiring `local-artifact` into the wrap-up step is the recommended finishing touch.
 
 ---
 
@@ -93,12 +95,12 @@ The worst autonomous-run failure is silent: the agent issues a command shape tha
 
 | Blocked | Why it stalls | Prompt-free equivalent |
 |---|---|---|
-| `cd <dir> && git/gh` | trips the "untrusted hooks from target directory" prompt | `git -C <abs-path> <cmd>` in one call |
+| `cd <dir> && git/gh` (or `; git`) | trips the "untrusted hooks from target directory" prompt | `git -C <abs-path>` (or `gh -R owner/repo`) in one call |
 | `\| head/grep/wc/tail/…` | output is invisible to the tool result + often huge | the Grep tool (count mode) / Read tool (offset+limit) |
-| `2>/dev/null` | hides the errors you actually need to see | drop the redirect |
-| `$(...)` / backticks | nests a command the tool can't audit | run it as its own call, reuse the literal value |
-| `until/while … sleep` | burns tokens, can idle past the stream timeout | the Monitor tool |
-| `; echo $?` | redundant | the Bash result already carries the exit code |
+| `2>/dev/null`, `&>/dev/null`, `>/dev/null 2>&1` | hides the errors you actually need to see | drop the redirect (redirecting to a real log file is fine) |
+| `$(...)` / backticks (except `$(cat <<…)`) | nests a command the tool can't audit | run it as its own call, reuse the literal value |
+| `until/while … do … sleep` | burns tokens, can idle past the stream timeout | the Monitor tool |
+| `$?` (exit-code reference) | redundant | the Bash result already carries the exit code |
 
 Every blocked form has a prompt-free equivalent that does the same thing — so it's not a loss of capability, just the road that skips the tollbooth. Wire it as a `PreToolUse` hook on the `Bash` matcher in `.claude/settings.json` (snippet at the top of the file). It runs on **every** Bash call, not just during a block: the habit only holds during a block if it holds in every session.
 
@@ -106,7 +108,7 @@ Every blocked form has a prompt-free equivalent that does the same thing — so 
 
 ## Model requirement (read before adopting)
 
-This skill requires a **Claude Opus-class model** (Opus 4.x or later). It is NOT compatible with Sonnet.
+This skill needs a **Claude Opus-class model** (Opus 4.x or later). In our testing, Sonnet won't hold the gates through an unattended block.
 
 Tested both extensively in production:
 - **Opus** follows the HARD-RULE gates reliably — Step 0.5 clarification, Step 3a push-per-commit, Step 4.5 queue-exhaustion all fire as written.
@@ -172,7 +174,7 @@ Both are unattended, but different shapes:
 | **Stop condition** | User cancels OR condition met | Wall-clock elapsed (Nh) OR queue exhausted via 5-criteria gate |
 | **Recovery from session death** | Next interval fires retries the same prompt | Heartbeat cron + `STATUS` DECISION-start entry tells next session WHERE to resume |
 | **Commit discipline** | None built-in | Push-per-commit hard rule; `date`-locked timestamps |
-| **Built-in or custom?** | Built-in Claude Code skill | Custom project skill (~305 lines) |
+| **Built-in or custom?** | Built-in Claude Code skill | Custom project skill (~330 lines) |
 | **Best for** | Monitoring, polling, repeated checks | Multi-task dev work, backlog drain |
 
 **When to use which:**

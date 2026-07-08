@@ -27,6 +27,13 @@ Behaviour
   - On a match: emits permissionDecision=deny with the corrected form.
   - On a clean command: exits 0 silently and the tool proceeds.
 
+Known limitation
+----------------
+These are structural regex checks, not a shell parser. A blocked pattern that
+appears inside a quoted string literal (e.g. `printf '%s' '| head'`) can
+false-positive. It's rare in practice; if you hit it, rephrase the command or
+disable the hook for that one call via .claude/settings.local.json.
+
 Install (per project, in .claude/settings.json)
 -----------------------------------------------
   {
@@ -66,31 +73,37 @@ def strip_heredocs(command: str) -> str:
 # ── Patterns ──────────────────────────────────────────────────────────────────
 # Each entry: (compiled regex, human rule, prompt-free fix). Order is cosmetic.
 
-# 1. `cd <dir> && git/gh` — trips the "untrusted hooks from target directory" prompt.
-RE_CD_GIT = re.compile(r'\bcd\s+\S+\s*&&\s*(?:git|gh)\b')
+# 1. `cd <dir> && git/gh` (or `; git`) — trips the "untrusted hooks from target
+#    directory" prompt. Handles quoted/`--`/multi-word dirs and both `&&` and `;`.
+RE_CD_GIT = re.compile(r'\bcd\s+\S.*?(?:&&|;)\s*(?:git|gh)\b')
 
 # 2. Pipe to an output-processing command — the output is invisible to the tool
 #    result and often huge. `| tee <file>` is left allowed as the log-capture form.
 RE_PIPE_PROCESS = re.compile(r'\|\s*(?:head|wc|grep|tail|sort|uniq|awk|sed|cut)\b')
 
-# 3. Stderr suppression — hides the very errors you need to see.
-RE_STDERR_DEVNULL = re.compile(r'2>\s*/dev/null')
+# 3. Stderr suppression to /dev/null — hides the very errors you need to see.
+#    Covers `2>/dev/null`, `2>>/dev/null`, `&>/dev/null`, and `>/dev/null 2>&1`.
+#    (Redirecting to a real log file, e.g. `> out.log 2>&1`, is fine and not matched.)
+RE_STDERR_DEVNULL = re.compile(r'(?:2>>?|&>)\s*/dev/null|>\s*/dev/null\s+2>&1')
 
 # 4. Command substitution `$(...)` — nesting hides a command the tool can't audit.
-#    `$(cat <<'EOF'` is allowed: that's the documented heredoc commit-message form.
-RE_CMD_SUBST = re.compile(r'\$\((?!cat\s+<<)')
+#    Allowed: `$(cat <<'EOF'` (the heredoc commit-message form) and `$((...))`
+#    (arithmetic, not a command).
+RE_CMD_SUBST = re.compile(r'\$\((?!\(|cat\s+<<)')
 
 # 5. Backticks — same problem as `$(...)`, no exception.
 RE_BACKTICK = re.compile(r'`[^`]*`')
 
-# 6. Sleep-poll loop — burns tokens and can idle past the stream timeout.
-RE_SLEEP_LOOP = re.compile(r'\b(?:until|while)\b[^;]*\bsleep\b')
+# 6. Sleep-poll loop (`while/until ...; do ... sleep N ...; done`) — burns tokens
+#    and can idle past the stream timeout. The `\bdo\b` in the middle keeps commit
+#    messages that merely mention "while" and "sleep" from false-positiving.
+RE_SLEEP_LOOP = re.compile(r'\b(?:until|while)\b.*?\bdo\b.*?\bsleep\b', re.DOTALL)
 
 # 7. Exit-code reference `$?` — the Bash tool result already carries the exit code.
 RE_EXIT_CODE = re.compile(r'\$\?')
 
 
-def evaluate(command: str):
+def evaluate(command: str, run_in_background: bool = False):
     """Return a list of (rule, fix) violations. Empty list = clean."""
     # Inspect shell STRUCTURE only — strip heredoc bodies first.
     command = strip_heredocs(command)
@@ -128,8 +141,7 @@ def evaluate(command: str):
     # Gate a long-running foreground command specific to your stack so it can't
     # idle past the stream timeout. Example (uncomment + adapt):
     #
-    #   run_bg = bool(payload_tool_input.get("run_in_background"))
-    #   if re.search(r'\byour-test-runner\b.*\btest\b', command) and not run_bg:
+    #   if re.search(r'\byour-test-runner\b.*\btest\b', command) and not run_in_background:
     #       violations.append((
     #           "foreground long-running test — risks a stream-idle timeout",
     #           "Set run_in_background: true and pair with a ScheduleWakeup so you're "
@@ -144,11 +156,17 @@ def main():
     except Exception:
         sys.exit(0)  # malformed payload — never block the agent
 
-    if payload.get("tool_name") != "Bash":
+    # Fail open on any unexpected shape — a malformed payload must never block work.
+    if not isinstance(payload, dict) or payload.get("tool_name") != "Bash":
         sys.exit(0)
-
-    command = (payload.get("tool_input", {}) or {}).get("command", "") or ""
-    violations = evaluate(command)
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        sys.exit(0)
+    command = tool_input.get("command")
+    if not isinstance(command, str):
+        sys.exit(0)
+    run_in_background = bool(tool_input.get("run_in_background", False))
+    violations = evaluate(command, run_in_background)
     if not violations:
         sys.exit(0)
 
