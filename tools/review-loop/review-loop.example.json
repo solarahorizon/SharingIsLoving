@@ -1,0 +1,6 @@
+{
+  "profile": "standard",
+  "merge_base": "main",
+  "vendor": "codex",
+  "vendor_fallback": "deepseek"
+}
