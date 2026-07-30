@@ -1,33 +1,38 @@
 # video-frame-review
 
 Turn a video into sampled JPEG frames plus **labelled contact sheets**, so an AI
-agent (or a human reviewer) can inspect a recording without playing it back.
+agent can inspect a recording without playing it back.
 
 The sheets are the point. Frames get tiled onto a grid with the wall-clock
 timestamp burned into each tile, so **one image covers 36 seconds** instead of
 one image per moment. An agent reading a sheet can tell you the button goes grey
-at 00:22 — it has the timeline, not just a still.
+at 00:22. It has the timeline, not just a still.
 
 ## Why this exists
 
 It started as a game-art problem. I was building a small 2D platformer and kept
 hitting the same wall: I could *see* that a jump felt wrong, but I could not hand
-that to an agent. Video is the honest record of how something moves, and an agent
-cannot watch video. So the conversation degenerated into me exporting stills one
-at a time and describing what happened between them.
+that to an agent. Video is the honest record of how something moves, and the
+agent I was working with could not open one. So the conversation degenerated into
+me exporting stills one at a time and describing what happened between them.
 
 The first version just dumped frames to PNGs. It helped, but reviewing a clip
 still cost one image read per frame, and every frame arrived with no idea *when*
-it was — which is exactly the information you need when the bug is "it stutters
+it was. That is exactly the information you need when the bug is "it stutters
 about a third of the way in."
 
 Tiling the frames and printing the timestamp on each one fixed both at once.
 
-That game did not end up continuing. The tool outlived it by a mile, because the
-underlying problem was never about games: **any time the evidence is a video, the
-agent is blind and you are stuck narrating.** Screen recordings of a bug, a
-simulator capture, an animation review, a clip someone sent you, a UI that
-misbehaves only in motion. Same fix every time.
+That game did not end up continuing. The tool outlived it, because the underlying
+problem was not specific to games: **any time the evidence is a recording and
+your agent cannot take it in that form, you are stuck narrating it.** Screen
+recordings of a bug, a simulator capture, an animation review, a clip someone
+sent you. Same fix every time.
+
+Agent video support varies by vendor and keeps moving, so this is not a claim
+about what any particular model can do. Frames on a labelled grid work
+everywhere, which is the point: it is one image read, in a format nothing has
+trouble with.
 
 ## Setup
 
@@ -35,7 +40,7 @@ misbehaves only in motion. Same fix every time.
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
-Also needs **`ffmpeg` on your `PATH`** (`ffprobe` is optional — used only to
+Also needs **`ffmpeg` on your `PATH`** (`ffprobe` is optional, used only to
 print an estimated frame count before it starts).
 
 ## Usage
@@ -55,13 +60,13 @@ recording_review_1p0fps/
 Hand the agent the **sheets**. Reach for individual `frames/` only when you need
 one moment at full resolution.
 
-There is no format restriction — the input goes straight to `ffmpeg -i`, so
+There is no format restriction. The input goes straight to `ffmpeg -i`, so
 `.mov`, `.mp4`, `.m4v`, `.webm`, `.mkv`, `.avi`, `.gif` and PNG sequences all
 work.
 
 ## Worked example
 
-A 6.5-second clip of a walk cycle from that platformer — the exact kind of thing
+A 6.5-second clip of a walk cycle from that platformer. The exact kind of thing
 that is impossible to describe in words and obvious in a grid.
 
 ```bash
@@ -112,15 +117,15 @@ python3 video_frame_review.py input.mp4 --width 720 --tile-width 320
 python3 video_frame_review.py input.mp4 --gif        # also write a shareable GIF
 ```
 
-- `--fps` (default `1`) — samples per second. Raise it for motion detail; timestamps
+- `--fps` (default `1`): samples per second. Raise it for motion detail; timestamps
   gain tenths automatically above 1 fps. This is the knob you'll actually tune.
-- `--max-frames` — stop early. Worth setting on a long recording before you find out
+- `--max-frames`: stop early. Worth setting on a long recording before you find out
   how many sheets it wanted to write.
-- `--columns` / `--rows` (default `6`x`6`) — tiles per sheet. Fewer, larger tiles read
+- `--columns` / `--rows` (default `6`x`6`): tiles per sheet. Fewer, larger tiles read
   more clearly if the detail you care about is small text.
-- `--tile-height` — normally leave it alone; tile height follows the footage's own
+- `--tile-height`: normally leave it alone. Tile height follows the footage's own
   aspect ratio, so portrait and landscape both fill their tiles.
-- `--gif` — animated GIF alongside the frames, for a devlog or a message thread.
+- `--gif`: animated GIF alongside the frames, for a devlog or a message thread.
 
 ## Notes
 
@@ -128,11 +133,11 @@ python3 video_frame_review.py input.mp4 --gif        # also write a shareable GI
   most agents downscale a large image before reading it, so empty space costs you
   the resolution you wanted spent on pixels.
 - **36 tiles per sheet stays legible** after that downscale, including burned-in
-  video captions — verified, not assumed. If your subject is finer than that (small
+  video captions. Verified, not assumed. If your subject is finer than that (small
   UI labels, code in a screen recording), drop to `--columns 4 --rows 3`.
 - **1 fps is a deliberate default.** Most review questions are "what changed and
   roughly when", and one frame per second answers that at a thirtieth of the frames.
   Motion questions ("does this loop cleanly?") want `--fps 4` or higher.
 - Frames are JPEG, so a two-minute recording costs a few MB rather than hundreds.
 
-MIT — adapt freely.
+MIT. Adapt freely.
