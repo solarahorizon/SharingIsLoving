@@ -89,6 +89,20 @@ gaps between them.
 Note the tiles are landscape here because the footage is. Feed it a phone
 recording and they come out portrait, no flags needed.
 
+## Already have the stills?
+
+Point it at a **directory** instead of a video and it sheets what's on disk, no
+ffmpeg needed:
+
+```bash
+python3 video_frame_review.py ./screenshots/
+```
+
+Tiles get labelled with filenames rather than timestamps, since a folder has no
+timeline. Useful for a batch of generated images, a screenshot run, or frames
+some other tool already exported. Same reason as the video case: a folder of 40
+images costs 40 image reads until they're on one grid.
+
 ### Useful options
 
 ```bash

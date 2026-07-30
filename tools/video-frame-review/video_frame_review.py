@@ -125,6 +125,22 @@ def write_gif(video: Path, gif_path: Path, image_width: int, fps: float) -> None
     )
 
 
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
+
+
+def collect_images(folder: Path) -> list[Path]:
+    """Sheet a folder of stills instead of sampling a video.
+
+    The same review problem one step earlier: a directory of generated frames or
+    screenshots costs one image read each until they are on a single grid. Tiles
+    get labelled with filenames, since there is no timeline to stamp.
+    """
+    images = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
+    if not images:
+        raise SystemExit(f"No images found in {folder}")
+    return images
+
+
 def timestamp_label(index: int, fps: float) -> str:
     """Wall-clock position of a frame. Tenths shown only when sampling above 1 fps."""
     seconds = (index - 1) / fps
@@ -162,7 +178,7 @@ def load_label_font(size: int) -> ImageFont.ImageFont:
 def build_sheets(
     frames: list[Path],
     sheets_dir: Path,
-    fps: float,
+    fps: float | None,
     columns: int,
     rows: int,
     tile_width: int,
@@ -192,7 +208,10 @@ def build_sheets(
             )
             tile = Image.new("RGB", (tile_width, tile_height), "white")
             draw = ImageDraw.Draw(tile)
-            draw.text((8, 6), timestamp_label(index, fps), fill=(0, 0, 0), font=font)
+            # No fps means these are stills off disk: label with the filename,
+            # which is the only handle a reader has to point back at one.
+            label = timestamp_label(index, fps) if fps else frame_path.stem[-18:]
+            draw.text((8, 6), label, fill=(0, 0, 0), font=font)
             image_x = (tile_width - image.width) // 2
             tile.paste(image, (image_x, LABEL_BAND))
             sheet_x = (offset % columns) * tile_width
@@ -217,12 +236,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Extract sampled video frames and make labelled contact sheets."
     )
-    parser.add_argument("video", type=Path, help="Input video (any format ffmpeg reads)")
+    parser.add_argument(
+        "video",
+        type=Path,
+        help="Input video (any format ffmpeg reads), OR a directory of stills to sheet as-is",
+    )
     parser.add_argument(
         "-o",
         "--out-dir",
         type=Path,
-        help="Output directory. Defaults to <video>_review_<fps>fps",
+        help="Output directory. Defaults to <input>_review_<fps>fps (or <dir>_sheets)",
     )
     parser.add_argument("--fps", type=positive_float, default=1.0, help="Frames per second")
     parser.add_argument("--width", type=positive_int, default=590, help="Extracted frame width")
@@ -251,30 +274,48 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    require_tool("ffmpeg")
 
-    video = args.video.expanduser().resolve()
-    if not video.exists():
-        raise SystemExit(f"Video not found: {video}")
+    source = args.video.expanduser().resolve()
+    if not source.exists():
+        raise SystemExit(f"Input not found: {source}")
 
-    out_dir = (args.out_dir or default_output_dir(video, args.fps)).expanduser().resolve()
+    stills_mode = source.is_dir()
+    if not stills_mode:
+        require_tool("ffmpeg")
+
+    if args.out_dir:
+        out_dir = args.out_dir.expanduser().resolve()
+    elif stills_mode:
+        out_dir = source.with_name(f"{source.name}_sheets")
+    else:
+        out_dir = default_output_dir(source, args.fps)
     frames_dir = out_dir / "frames"
     sheets_dir = out_dir / "sheets"
     overwrite = not args.keep_existing
 
-    duration = probe_duration(video)
-    if duration is not None and args.max_frames is None:
-        estimated = math.ceil(duration * args.fps)
-        print(f"{video.name}: {duration:.1f}s, extracting about {estimated} frames")
+    if stills_mode:
+        frames = collect_images(source)
+        if args.max_frames is not None:
+            frames = frames[: args.max_frames]
+        sheet_fps = None
+        print(f"{source.name}/: sheeting {len(frames)} stills already on disk")
     else:
-        print(f"{video.name}: extracting frames")
+        sheet_fps = args.fps
+        duration = probe_duration(source)
+        if duration is not None and args.max_frames is None:
+            estimated = math.ceil(duration * args.fps)
+            print(f"{source.name}: {duration:.1f}s, extracting about {estimated} frames")
+        else:
+            print(f"{source.name}: extracting frames")
+        frames = extract_frames(
+            source, frames_dir, args.fps, args.width, args.max_frames, overwrite
+        )
 
-    frames = extract_frames(video, frames_dir, args.fps, args.width, args.max_frames, overwrite)
     tile_width, tile_height = tile_size(frames[0], args.tile_width, args.tile_height)
     sheets = build_sheets(
         frames,
         sheets_dir,
-        args.fps,
+        sheet_fps,
         args.columns,
         args.rows,
         tile_width,
@@ -283,15 +324,21 @@ def main() -> None:
         overwrite,
     )
 
-    print(f"frames: {len(frames)} -> {frames_dir}")
+    if stills_mode:
+        print(f"stills: {len(frames)} read from {source}")
+    else:
+        print(f"frames: {len(frames)} -> {frames_dir}")
     print(f"sheets: {len(sheets)} -> {sheets_dir}  (tile {tile_width}x{tile_height})")
     for sheet in sheets:
         print(sheet)
 
     if args.gif:
-        gif_path = out_dir / f"{video.stem}.gif"
-        write_gif(video, gif_path, args.width, 12)
-        print(f"gif -> {gif_path}")
+        if stills_mode:
+            print("note: --gif needs a video input; skipped for a stills directory")
+        else:
+            gif_path = out_dir / f"{source.stem}.gif"
+            write_gif(source, gif_path, args.width, 12)
+            print(f"gif -> {gif_path}")
 
 
 if __name__ == "__main__":
