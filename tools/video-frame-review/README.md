@@ -1,7 +1,13 @@
 # video-frame-review
 
-Turn a video into sampled JPEG frames plus **labelled contact sheets**, so an AI
-agent can inspect a recording without playing it back.
+**When the AI agent you are working with cannot watch video, this is the tool for
+you.** It turns a recording into sampled JPEG frames plus **labelled contact
+sheets**, so the agent can inspect the footage without playing it back.
+
+Some models now accept video directly, and more will. This is for every setup
+that does not: your agent, your harness, your current subscription. Frames on a
+labelled grid are just images, so they work regardless of what is on the other
+end.
 
 The sheets are the point. Frames get tiled onto a grid with the wall-clock
 timestamp burned into each tile, so **one image covers 36 seconds** instead of
@@ -157,33 +163,49 @@ when the words matter as much as what is on screen.
 
 ## Worked example
 
-A 6.5-second clip of a walk cycle from that platformer. The exact kind of thing
-that is impossible to describe in words and obvious in a grid.
+Both the input and the output are committed here, so you can run this exact
+command after cloning and compare.
+
+**The input.** A 6.5-second walk cycle from that platformer. This is what I could
+see and could not hand over:
+
+![The source clip: a character walking left to right across a scrolling scene](example-clip.gif)
+
+That is the whole problem in one image. It is a *recording*. You can watch it;
+the agent could not.
+
+**The command:**
 
 ```bash
-python3 video_frame_review.py walkcycle.mp4 --fps 4
+python3 video_frame_review.py example-clip.gif --fps 4
 ```
 
 ```text
-walkcycle.mp4: 6.5s, extracting about 26 frames
-frames: 26 -> walkcycle_review_4p0fps/frames
-sheets: 1 -> walkcycle_review_4p0fps/sheets  (tile 280x186)
-walkcycle_review_4p0fps/sheets/sheet_0001_0026.jpg
+example-clip.gif: 6.5s, extracting about 27 frames
+frames: 26 -> example-clip_review_4p0fps/frames
+sheets: 1 -> example-clip_review_4p0fps/sheets  (tile 280x186)
+example-clip_review_4p0fps/sheets/sheet_0001_0026.jpg
 ```
 
-That one sheet is the whole clip:
+**The output.** The same clip, now a single image an agent can read in one go:
 
-![Contact sheet: 26 frames of a walk cycle, each labelled with its timestamp](example-sheet.jpg)
+![Contact sheet: 26 frames of the walk cycle, each labelled with its timestamp](example-sheet.jpg)
 
-Now paste that single image into your agent and ask a real question. Because the
-timestamps sit on the tiles, the answers come back anchored to the clip: you can
-see the character cross the scene left to right, watch the background scroll with
-it, and point at the exact tile where the stride stops looking right. Getting to
-that same observation used to mean 26 separate image pastes and me narrating the
-gaps between them.
+Put the two side by side and the point lands. The clip carries the motion but
+nothing can cite it. The sheet gives up smoothness and gains something an agent
+can work with: 26 moments, in order, each stamped with when it happened.
 
-Note the tiles are landscape here because the footage is. Feed it a phone
-recording and they come out portrait, no flags needed.
+So you can ask a real question. Because the timestamps sit on the tiles, the
+answer comes back anchored to the clip: you can see the character cross the scene
+left to right, watch the background scroll with it, and point at the exact tile
+where the stride stops looking right. Getting to that same observation used to
+mean 26 separate image pastes and me narrating the gaps between them.
+
+Two things to notice. The tiles are landscape because the footage is; feed it a
+phone recording and they come out portrait, no flags needed. And the sheet is
+sharper than the clip above, because `example-clip.gif` is a size-reduced copy
+for this README while the sheet came from the original. Your own footage will
+sheet at whatever quality you feed it.
 
 ## Already have the stills?
 
