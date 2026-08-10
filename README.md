@@ -34,6 +34,10 @@ Most AI workflow content is theoretical — what someone wishes were true, polis
 - **[tools/review-loop/](tools/review-loop/)** — "The Gauntlet": a review loop that keeps AI coding agents honest. Every commit and merge runs a gauntlet of independent reviews first, each pass bound to the exact diff it reviewed, so nothing lands on a stale approval and nothing sneaks through on the agent's own confidence. A few scripts plus one config file per project — no service to run. Includes a visual walk-through of the flow.
 - **[tools/mcp-disable/](tools/mcp-disable/)** — disable every MCP server across ALL your Claude Code projects in one run. Born from a context audit: two connectors used once (or never) were injecting 89 tool definitions (~2-3K tokens) into every session, in every project — and `/mcp` only fixes the current project. Auto-discovers servers from `~/.claude.json`, disables everywhere, `--enable` reverses, timestamped backup before every write. Stdlib only.
 
+### `configs/` — settings snippets that survived contact with reality
+
+- **[configs/claude-code-vendor-swap/](configs/claude-code-vendor-swap/)** — point ONE Claude Code project at an Anthropic-compatible vendor endpoint (Qwen, Kimi) while every other project stays on your Claude subscription. Three settings in that project's `settings.local.json`, key in a `chmod 700` script outside any repo via `apiKeyHelper`. Both configs ran in production; the README carries the verification step (read the JSON `model` field, never the model's self-report or the status line) and the traps hit for real, including the Moonshot endpoint/key-type mismatch that returns a misleading 401.
+
 ---
 
 ## What's coming

@@ -1,0 +1,7 @@
+{
+  "apiKeyHelper": "/Users/you/.claude/kimi-key.sh",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.kimi.com/coding",
+    "ANTHROPIC_MODEL": "kimi-k3"
+  }
+}

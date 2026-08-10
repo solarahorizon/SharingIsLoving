@@ -1,0 +1,7 @@
+{
+  "apiKeyHelper": "/Users/you/.claude/qwen-key.sh",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://token-plan.<region>.maas.aliyuncs.com/apps/anthropic",
+    "ANTHROPIC_MODEL": "qwen3.8-max"
+  }
+}

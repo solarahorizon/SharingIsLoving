@@ -23,7 +23,7 @@ Top-level folders are categories. A category is born when its first real artefac
 - `skills/` — Claude Code skills (e.g. `autonomous-block`)
 - `tools/` — standalone scripts/utilities (e.g. `ai-art-cleanup`)
 - `patterns/` — reusable recipes that aren't a packaged skill or tool *(when the first lands)*
-- `configs/` — hooks, settings snippets, CI gates *(when the first lands)*
+- `configs/` — hooks, settings snippets, CI gates (e.g. `claude-code-vendor-swap`)
 
 ## Per-artefact convention
 
