@@ -36,7 +36,7 @@ Most AI workflow content is theoretical — what someone wishes were true, polis
 
 ### `configs/` — settings snippets that survived contact with reality
 
-- **[configs/claude-code-vendor-swap/](configs/claude-code-vendor-swap/)** — point ONE Claude Code project at an Anthropic-compatible vendor endpoint (Qwen, Kimi) while every other project stays on your Claude subscription. Three settings in that project's `settings.local.json`, key in a `chmod 700` script outside any repo via `apiKeyHelper`. Both configs ran in production; the README carries the verification step (read the JSON `model` field, never the model's self-report or the status line) and the traps hit for real, including the Moonshot endpoint/key-type mismatch that returns a misleading 401.
+- **[configs/claude-code-vendor-swap/](configs/claude-code-vendor-swap/)** — point ONE Claude Code project at an Anthropic-compatible vendor endpoint (Qwen, Kimi) while every other project stays on your Claude subscription. Three settings in that project's `settings.local.json`, key in a `chmod 700` script outside any repo via `apiKeyHelper`. Both configs ran in production; the README carries the verification step (read the JSON `modelUsage` key, never the model's self-report or the status line) and the traps hit for real, including the Moonshot endpoint/key-type mismatch that returns a misleading 401.
 
 ---
 
