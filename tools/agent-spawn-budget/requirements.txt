@@ -1,0 +1,2 @@
+# agent-spawn-budget has no third-party dependencies.
+# Python 3.9 or newer, standard library only.
