@@ -5,8 +5,13 @@ Claude Code will start several subagents when it judges work parallelisable.
 Each one runs its own conversation and re-reads its own context on every turn,
 so a cluster of six is six conversations paid for, not one.
 
-Run as a hook (reads a PreToolUse payload on stdin, writes a decision on stdout):
+Run as a hook (reads a hook payload on stdin, writes a decision on stdout):
     agent_spawn_budget.py --hook
+Register it three times: under PreToolUse on the spawn tool, where it decides;
+under SubagentStart, where it records a started agent by its agent_id; and under
+SubagentStop, where it removes that same agent_id. The in-flight rule is on only
+while both SubagentStart and SubagentStop register it in a settings file this
+script can read, because a count with no removal could only grow.
 
 Run as a tool:
     agent_spawn_budget.py --report            measure your own spawn history
@@ -15,7 +20,8 @@ Run as a tool:
     agent_spawn_budget.py --revoke
 
 Config, first file that parses into an object wins:
-    $CLAUDE_PROJECT_DIR/.claude/agent-spawn-budget.json
+    <project>/.claude/agent-spawn-budget.json
+      (<project> is $CLAUDE_PROJECT_DIR, or the working directory when unset)
     ~/.claude/agent-spawn-budget.json
 Keys, types and defaults are in DEFAULTS below. A key of the wrong type is
 ignored and its default is used.
@@ -51,6 +57,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -72,6 +79,12 @@ DEFAULTS = {
     "exempt_subagent_types": [],
     # Set false to print a would-be denial on stderr and block nothing.
     "enforce": True,
+    # Deny a spawn while this many agents of the session are still running.
+    # Spacing spawns out passes the burst rule; this one it does not. 0 disables.
+    "inflight_max": 1,
+    # Any running agent stops counting after this long, whether it is still
+    # working or its stop was lost. 0 counts nothing, so the rule is off.
+    "inflight_ttl_minutes": 30,
     # Session files untouched for this long are removed on the next hook run.
     "state_retention_days": 30,
 }
@@ -86,6 +99,14 @@ SESSION_LOCK = STATE_DIR / "sessions"
 # grant file or a lock, and pruning can tell state from everything else.
 SESSION_PREFIX = "s-"
 SPAWN_TOOLS = ("Agent", "Task")
+START_EVENT = "SubagentStart"
+STOP_EVENT = "SubagentStop"
+# The agent type Claude Code runs when a spawn names none, and the type
+# SubagentStart then reports, so exemption compares one name at both events.
+DEFAULT_AGENT_TYPE = "general-purpose"
+# A running agent whose stop was lost stopped counting at its TTL; its entry is
+# dropped from disk after this long. An agent still running keeps its entry.
+INFLIGHT_KEEP_SECONDS = 24 * 3600
 # Lower bound on how many recent timestamps a session keeps. The burst rule
 # counts this list, so the real bound is whatever burst_max needs; see
 # stamps_to_keep.
@@ -101,14 +122,24 @@ def warn(message):
     sys.stderr.write("agent-spawn-budget: %s\n" % message)
 
 
+def project_candidates(*names):
+    """<project>/.claude/<name> for each name, or [] when there is no project.
+
+    The project is $CLAUDE_PROJECT_DIR, set for hooks, or the working directory
+    from a terminal. A working directory that was deleted means no project.
+    """
+    try:
+        project = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    except OSError:
+        return []
+    return [project / ".claude" / name for name in names]
+
+
 def load_config():
     """Merge the first readable config file over DEFAULTS, by key and by type."""
     cfg = dict(DEFAULTS)
-    candidates = []
-    project = os.environ.get("CLAUDE_PROJECT_DIR")
-    if project:
-        candidates.append(Path(project) / ".claude" / "agent-spawn-budget.json")
-    candidates.append(Path.home() / ".claude" / "agent-spawn-budget.json")
+    candidates = (project_candidates("agent-spawn-budget.json")
+                  + [Path.home() / ".claude" / "agent-spawn-budget.json"])
     for path in candidates:
         try:
             loaded = json.loads(path.read_text())
@@ -198,30 +229,43 @@ def session_file(session_id):
                         + hashlib.sha256(raw.encode()).hexdigest()[:32] + ".json")
 
 
-def read_state(path):
-    """Return (spawns ever in this session, recent timestamps).
+def numbers(value):
+    """The numeric entries of a list read from disk; anything else reads as []."""
+    if not isinstance(value, list):
+        return []
+    return [t for t in value
+            if isinstance(t, (int, float)) and not isinstance(t, bool)]
 
-    Anything but the expected shape reads as empty and says so, because a
-    budget that silently forgets its counter is worse than one that complains.
+
+def agent_starts(value):
+    """The {agent_id: start time} entries of a map read from disk; else {}."""
+    if not isinstance(value, dict):
+        return {}
+    return {k: t for k, t in value.items() if isinstance(k, str)
+            and isinstance(t, (int, float)) and not isinstance(t, bool)}
+
+
+def read_state(path):
+    """Return (spawns ever in this session, recent timestamps, running agents).
+
+    Running agents map agent_id to start time for agents started and not yet
+    stopped. Anything but the expected shape reads as empty and says so, because
+    a budget that silently forgets its counter is worse than one that complains.
     """
     try:
         raw = json.loads(path.read_text())
     except FileNotFoundError:
-        return 0, []
+        return 0, [], {}
     except (OSError, ValueError):
         warn("state file %s is unreadable; this session's count restarts" % path)
-        return 0, []
+        return 0, [], {}
     if not isinstance(raw, dict):
         warn("state file %s has an unexpected shape; count restarts" % path)
-        return 0, []
+        return 0, [], {}
     count = raw.get("count")
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         count = 0
-    stamps = raw.get("stamps")
-    if not isinstance(stamps, list):
-        stamps = []
-    return count, [t for t in stamps
-                   if isinstance(t, (int, float)) and not isinstance(t, bool)]
+    return count, numbers(raw.get("stamps")), agent_starts(raw.get("inflight"))
 
 
 def stamps_to_keep(burst_max):
@@ -233,7 +277,23 @@ def stamps_to_keep(burst_max):
     return max(MIN_STAMPS_KEPT, burst_max + 1)
 
 
-def record_spawn(path, count, stamps, now, cfg):
+def running_agents(inflight, now, cfg):
+    """Start times of the session's agents that count against inflight_max, oldest first."""
+    return sorted(t for t in inflight.values()
+                  if in_window(t, now, cfg["inflight_ttl_minutes"] * 60))
+
+
+def kept_agents(inflight, now):
+    """The entries still inside INFLIGHT_KEEP_SECONDS, TTL not applied."""
+    return {k: t for k, t in inflight.items()
+            if in_window(t, now, INFLIGHT_KEEP_SECONDS)}
+
+
+def write_state(path, count, stamps, inflight):
+    write_json(path, {"count": count, "stamps": stamps, "inflight": inflight})
+
+
+def record_spawn(path, count, stamps, inflight, now, cfg):
     """Add one spawn to the session's durable count and its recent window.
 
     The count is its own field rather than the length of the timestamp list,
@@ -242,8 +302,71 @@ def record_spawn(path, count, stamps, now, cfg):
     """
     kept = [t for t in stamps if in_window(t, now, cfg["burst_window_seconds"])]
     kept.append(now)
-    write_json(path, {"count": count + 1,
-                      "stamps": kept[-stamps_to_keep(cfg["burst_max"]):]})
+    write_state(path, count + 1, kept[-stamps_to_keep(cfg["burst_max"]):],
+                kept_agents(inflight, now))
+
+
+def start_agent(path, agent_id, now):
+    """Record a started agent under its agent_id. The caller holds the lock."""
+    count, stamps, inflight = read_state(path)
+    inflight = kept_agents(inflight, now)
+    inflight[agent_id] = now
+    write_state(path, count, stamps, inflight)
+
+
+def stop_agent(path, agent_id, now):
+    """Remove a stopped agent by its agent_id. The caller holds the lock.
+
+    A stop for an agent never recorded, such as an exempt one, changes nothing.
+    """
+    if not path.exists():
+        return
+    count, stamps, inflight = read_state(path)
+    kept = kept_agents(inflight, now)
+    kept.pop(agent_id, None)
+    if kept != inflight:
+        write_state(path, count, stamps, kept)
+
+
+def agent_type_of(tool_input):
+    """The agent type a spawn will run, as SubagentStart will report it."""
+    return tool_input.get("subagent_type") or DEFAULT_AGENT_TYPE
+
+
+def registered_events():
+    """The hook events whose settings entries run this script.
+
+    Reads the user settings, then the project's settings.json and
+    settings.local.json (see project_candidates). A registration in any other settings
+    source is not seen. A command matches when one of its words is a path to a
+    file with this script's name; a command that will not parse is skipped alone.
+    """
+    me = Path(__file__).name
+    found = set()
+    for path in ([Path.home() / ".claude" / "settings.json"]
+                 + project_candidates("settings.json", "settings.local.json")):
+        try:
+            hooks = json.loads(path.read_text()).get("hooks", {})
+            events = [(name, hooks.get(name, [])) for name in (START_EVENT, STOP_EVENT)]
+        except (OSError, ValueError, AttributeError):
+            continue
+        for name, entries in events:
+            for entry in entries if isinstance(entries, list) else []:
+                commands = entry.get("hooks", []) if isinstance(entry, dict) else []
+                for hook in commands if isinstance(commands, list) else []:
+                    try:
+                        words = shlex.split(str(hook.get("command", "")))
+                    except (ValueError, AttributeError):
+                        continue
+                    if any(Path(word).name == me for word in words):
+                        found.add(name)
+    return found
+
+
+def inflight_rule_on(cfg):
+    """True when the in-flight rule can both record agents and remove them."""
+    return (cfg["inflight_max"] > 0 and cfg["inflight_ttl_minutes"] > 0
+            and registered_events() == {START_EVENT, STOP_EVENT})
 
 
 def prune_state(retention_days):
@@ -324,8 +447,8 @@ def deny(reason):
     sys.exit(0)
 
 
-def find_problem(cfg, tool_input, count, window):
-    """The reason to deny this spawn, or None."""
+def find_problem(cfg, tool_input, count, window, running, now):
+    """The reason to deny this spawn, or None. `running` is [] when the rule is off."""
     if cfg["require_explicit_model"] and not tool_input.get("model"):
         return (
             "This spawn does not set `model`. Unless the agent definition or a "
@@ -336,6 +459,18 @@ def find_problem(cfg, tool_input, count, window):
             "reading and routine edits, opus for judgment. A fork always "
             "inherits and ignores `model`, so exempt forks by subagent type "
             "rather than trying to fix them with a model name."
+        )
+    if cfg["inflight_max"] and len(running) >= cfg["inflight_max"]:
+        return (
+            "%d agent(s) from this session are still running, and the budget "
+            "is %d at a time. The oldest started %d seconds ago.\n"
+            "Starting agents a minute apart is still a fan-out: they all run "
+            "at once and each one is paid for.\n"
+            "Wait for the running agent's result, then decide the next spawn, "
+            "or fold the next task into the running agent's brief next time. "
+            "A running agent stops counting after %d minutes."
+            % (len(running), cfg["inflight_max"], now - running[0],
+               cfg["inflight_ttl_minutes"])
         )
     if len(window) >= cfg["burst_max"]:
         return (
@@ -368,6 +503,25 @@ def run_hook(cfg):
     if not isinstance(payload, dict):
         warn("stdin was not a JSON object; allowing the spawn")
         sys.exit(0)
+    event = payload.get("hook_event_name")
+    if event in (START_EVENT, STOP_EVENT):
+        agent_id = payload.get("agent_id")
+        if not isinstance(agent_id, str) or not agent_id:
+            warn("%s carried no agent_id; nothing recorded" % event)
+            sys.exit(0)
+        path = session_file(payload.get("session_id"))
+        try:
+            with locked(SESSION_LOCK):
+                if event == STOP_EVENT:
+                    stop_agent(path, agent_id, time.time())
+                elif (payload.get("agent_type") not in cfg["exempt_subagent_types"]
+                      and inflight_rule_on(cfg)):
+                    start_agent(path, agent_id, time.time())
+        except Exception as error:
+            warn("FAILED (%s: %s) on %s. The in-flight count for this session "
+                 "may be wrong until inflight_ttl_minutes runs out."
+                 % (type(error).__name__, error, event))
+        sys.exit(0)
     if payload.get("tool_name") not in SPAWN_TOOLS:
         sys.exit(0)
 
@@ -375,24 +529,26 @@ def run_hook(cfg):
     if not isinstance(tool_input, dict):
         warn("tool_input was not an object; allowing the spawn")
         sys.exit(0)
-    if tool_input.get("subagent_type") in cfg["exempt_subagent_types"]:
+    if agent_type_of(tool_input) in cfg["exempt_subagent_types"]:
         sys.exit(0)
 
     session_id = payload.get("session_id")
     now = time.time()
     path = session_file(session_id)
+    count_running = inflight_rule_on(cfg)
 
     # Decide and record under one lock. Without it, several hooks firing in the
     # same instant all read the same pre-burst state and all allow.
     with locked(SESSION_LOCK):
-        count, stamps = read_state(path)
+        count, stamps, inflight = read_state(path)
         window = [t for t in stamps
                   if in_window(t, now, cfg["burst_window_seconds"])]
-        problem = find_problem(cfg, tool_input, count, window)
+        running = running_agents(inflight, now, cfg) if count_running else []
+        problem = find_problem(cfg, tool_input, count, window, running, now)
         # A denied spawn never runs, so it must not consume budget. Under
         # enforce:false it does run, so it must.
         if problem is None or not cfg["enforce"]:
-            record_spawn(path, count, stamps, now, cfg)
+            record_spawn(path, count, stamps, inflight, now, cfg)
 
     if problem is None:
         sys.exit(0)
@@ -403,8 +559,8 @@ def run_hook(cfg):
 
     if claim_grant(session_id, now):
         with locked(SESSION_LOCK):
-            count, stamps = read_state(path)
-            record_spawn(path, count, stamps, now, cfg)
+            count, stamps, inflight = read_state(path)
+            record_spawn(path, count, stamps, inflight, now, cfg)
         sys.exit(0)
 
     deny(problem + "\n\nIf this fan-out is genuinely worth it, put the reason "
@@ -590,11 +746,24 @@ def show_status(cfg):
                 continue
     except OSError:
         pass
+    if not cfg["inflight_max"]:
+        print("\nIn-flight rule: off (inflight_max is 0).")
+    elif not cfg["inflight_ttl_minutes"]:
+        print("\nIn-flight rule: off (inflight_ttl_minutes is 0).")
+    elif inflight_rule_on(cfg):
+        print("\nIn-flight rule: on, %d agent(s) at a time per session."
+              % cfg["inflight_max"])
+    else:
+        missing = sorted({START_EVENT, STOP_EVENT} - registered_events())
+        print("\nIn-flight rule: OFF. Register %s under %s to turn it on."
+              % (Path(__file__).name, " and ".join(missing)))
+    now = time.time()
     print("\nSessions with state on disk: %d" % len(sessions))
     for _, path in sorted(sessions, reverse=True)[:5]:
-        count, _ = read_state(path)
-        print("   %-40s %5d spawns"
-              % (path.stem[len(SESSION_PREFIX):], count))
+        count, _, inflight = read_state(path)
+        print("   %-40s %5d spawns %3d running"
+              % (path.stem[len(SESSION_PREFIX):], count,
+                 len(running_agents(inflight, now, cfg))))
 
 
 def main():
@@ -637,6 +806,8 @@ def main():
     cfg = load_config()
     if cfg["burst_max"] == 0:
         warn("burst_max is 0, which denies every spawn")
+    if cfg["inflight_max"] and cfg["inflight_ttl_minutes"] == 0:
+        warn("inflight_ttl_minutes is 0, which counts no running agent")
 
     if args.hook:
         try:

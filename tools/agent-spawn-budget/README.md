@@ -1,7 +1,8 @@
 # agent-spawn-budget — put a budget on how many agents Claude Code starts at once
 
 A stdlib-only Python hook that sits in front of Claude Code's `Agent` tool. It
-denies a spawn when too many start in quick succession, and denies a spawn that
+denies a spawn when too many start in quick succession, denies a spawn while
+another agent of the same session is still running, and denies a spawn that
 does not say which model to run. One file, no dependencies.
 
 ## The problem
@@ -62,10 +63,29 @@ prints it: on that machine 94.6% of the total is cache reads, which bill far
 below fresh input. Against a subscription's usage limit the raw token count is
 the figure that matters. Against an invoice it is not.
 
+## Why a burst limit alone is not enough
+
+A burst limit counts how fast agents start. It does not count how many are
+running. That gap showed up in real use, in one session with a two-per-minute
+limit and a written rule of one helper agent at a time.
+
+The agent sent ten `Agent` calls in a single message anyway. Claude Code ran
+those calls one after another, so they reached the hook spread over several
+minutes. The hook let two through each minute, in pairs about a minute apart,
+and denied the rest. No minute was over budget. Seven agents ended up running
+at once.
+
+The in-flight rule closes that gap. It does not ask how fast agents started. It
+asks how many of this session's agents are still running, and it denies a new
+one while `inflight_max` of them are.
+
 ## Install
 
-Copy `agent_spawn_budget.py` anywhere and register it as a `PreToolUse` hook, in
-`.claude/settings.json` or `~/.claude/settings.json`:
+Copy `agent_spawn_budget.py` anywhere and register it three times, in
+`~/.claude/settings.json` (every project) or a project's `.claude/settings.json`:
+under `PreToolUse`, where it decides; under `SubagentStart`, where it records an
+agent that really started, by its `agent_id`; and under `SubagentStop`, where it
+removes that same `agent_id`.
 
 ```json
 {
@@ -73,6 +93,26 @@ Copy `agent_spawn_budget.py` anywhere and register it as a `PreToolUse` hook, in
     "PreToolUse": [
       {
         "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /path/to/agent_spawn_budget.py --hook"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /path/to/agent_spawn_budget.py --hook"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
         "hooks": [
           {
             "type": "command",
@@ -89,18 +129,28 @@ The matcher names both because the spawn tool is called `Agent` on some builds
 and `Task` on others. The hook accepts either and ignores every other tool, so
 matching both is safe.
 
+The `SubagentStart` and `SubagentStop` entries turn the in-flight rule on. The
+hook looks for its own file name under both events in `~/.claude/settings.json`,
+and in the project's `settings.json` and `settings.local.json` (the project is
+`$CLAUDE_PROJECT_DIR`, or the folder you run `--status` from). If either is
+missing, the in-flight rule stays off, because a count that is never reduced
+would block the session. `--status` says whether the rule is on, and names the
+missing event when it is not.
+
 ## What it denies
 
 | Rule | Default | Why |
 |---|---|---|
+| `inflight_max` | 1 | Deny a spawn while this many agents of the session are still running. Spacing spawns a minute apart gets past a burst limit; the agents still all run at once. This rule counts what is running, not how fast it started. `0` switches it off. |
+| `inflight_ttl_minutes` | 30 | A running agent stops counting after this long, so a lost stop event cannot block a session for good. An agent still working past it no longer counts either. `0` counts nothing, so the rule is off, and the hook warns. |
 | `burst_max` in `burst_window_seconds` | 2 in 120s | Six at once is six conversations paid for, not one. `burst_max: 0` denies every spawn, so switch the rule off with a number above any real fan-out instead. |
 | `require_explicit_model` | on | Where neither the agent definition nor a configured default names a model, an unset one inherits the parent session's, the priciest in play. |
 | `session_max` | off | A lifetime ceiling for one session, if you want one. |
-| `exempt_subagent_types` | none | Name the agents that must never be blocked, such as a review gate, or a `fork`, which always inherits its model and cannot satisfy the rule above. |
+| `exempt_subagent_types` | none | Name the agents that must never be blocked, such as a review gate, or a `fork`, which always inherits its model and cannot satisfy the rule above. A spawn that names no type runs as `general-purpose` and is matched under that name, which is also the type `SubagentStart` reports for it. |
 | `enforce` | on | Set false to print each would-be denial on stderr and block nothing. An allowed spawn stays silent. |
 
-Put overrides in `$CLAUDE_PROJECT_DIR/.claude/agent-spawn-budget.json`, which
-wins, or `~/.claude/agent-spawn-budget.json`. A key of the wrong type is
+Put overrides in `<project>/.claude/agent-spawn-budget.json`, which wins (the
+project is `$CLAUDE_PROJECT_DIR`, or the folder you run the script from), or `~/.claude/agent-spawn-budget.json`. A key of the wrong type is
 ignored, its default used, and a line printed on stderr saying so. A file that
 will not parse is skipped, so a broken project config falls through to the home
 one rather than hiding it.
@@ -122,7 +172,7 @@ binds it up front. Fanning out stays possible. Fanning out by accident does not.
 python3 agent_spawn_budget.py --report    # measure your own spawn history and its cost
 python3 agent_spawn_budget.py --status    # config, per-session counters, any live grant
 python3 agent_spawn_budget.py --revoke    # cancel a grant early
-python3 test_agent_spawn_budget.py        # 125 self-tests, no network, throwaway HOME
+python3 test_agent_spawn_budget.py        # 178 self-tests, no network, throwaway HOME
 ```
 
 `--report` reads `~/.claude/projects/**/*.jsonl` on your own machine and prints
@@ -146,11 +196,21 @@ says so in that line rather than going quiet.
 
 A denied spawn is not counted against the budget, because it never ran.
 
-Two limits worth knowing. On a filesystem where `flock` is a no-op, which some
+Limits worth knowing. On a filesystem where `flock` is a no-op, which some
 network and FUSE mounts are, the lock is not real and the race above returns
 with no signal; keep the state on a local disk. And the hook sees only the
 `model` on the spawn itself, so it denies an absent one whether or not an agent
 definition or a configured default would have supplied it.
+
+Two more belong to the in-flight rule. It counts an agent from its
+`SubagentStart` event, so it relies on that event reaching the hook before the
+next spawn is judged. Measured on Claude Code 2.1.270 with a two-call
+background batch, it does: the start fired right after the spawn was allowed,
+before the next call was judged. Two spawns
+judged at the same instant could both pass; the burst
+rule still caps such a batch at `burst_max`. And an agent that runs longer than
+`inflight_ttl_minutes` stops counting while it still runs, so raise the TTL if
+your agents run long.
 
 ## Licence
 
