@@ -25,7 +25,7 @@ def run(home, payload=None, *args, wait=True):
     proc = subprocess.Popen(
         [sys.executable, str(HOOK)] + list(args),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        text=True, env={"HOME": str(home), "PATH": "/usr/bin:/bin"}, cwd=str(home),
     )
     if not wait:
         return proc
@@ -172,7 +172,8 @@ def test_malformed(home):
                         ("a JSON number", "42"), ("empty stdin", "")]:
         proc = subprocess.run([sys.executable, str(HOOK), "--hook"], input=body,
                               capture_output=True, text=True,
-                              env={"HOME": str(home), "PATH": "/usr/bin:/bin"})
+                              env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+                              cwd=str(home))
         check("%s does not crash" % label, proc.returncode, 0)
         check("%s allows the spawn" % label, proc.stdout.strip(), "")
 
@@ -339,7 +340,7 @@ def test_config_fallback(home):
         proc = subprocess.run(
             [sys.executable, str(HOOK), "--hook"],
             input=json.dumps(payload_for(session="fallback")),
-            capture_output=True, text=True, env=env)
+            capture_output=True, text=True, env=env, cwd=str(home))
         results.append("deny" if proc.stdout.strip() else None)
     check("a broken project config falls through to the home config",
           results, [None] * 5 + ["deny"])
@@ -465,6 +466,261 @@ def test_status_survives_a_vanishing_entry(home):
     broken.unlink()
 
 
+def hook_entry(command="python3 /x/agent_spawn_budget.py --hook"):
+    return [{"hooks": [{"type": "command", "command": command}]}]
+
+
+INFLIGHT_SETTINGS = {"hooks": {"SubagentStart": hook_entry(), "SubagentStop": hook_entry()}}
+
+
+def register_inflight(home, settings=INFLIGHT_SETTINGS):
+    path = home / ".claude" / "settings.json"
+    if settings is None:
+        if path.exists():
+            path.unlink()
+    else:
+        path.write_text(json.dumps(settings))
+
+
+def agent_event(home, event, agent_id, session="s1", agent_type="general-purpose"):
+    body = {"session_id": session, "hook_event_name": event, "agent_type": agent_type}
+    if agent_id is not None:
+        body["agent_id"] = agent_id
+    return run(home, body, "--hook")
+
+
+def start(home, agent_id, **kwargs):
+    return agent_event(home, "SubagentStart", agent_id, **kwargs)
+
+
+def stop(home, agent_id, **kwargs):
+    return agent_event(home, "SubagentStop", agent_id, **kwargs)
+
+
+def running_of(home, session):
+    path = home / ".claude" / "agent-spawn-budget" / ("s-" + session + ".json")
+    if not path.exists():
+        return {}
+    return state_of(home, session).get("inflight", {})
+
+
+def spawn_and_start(home, agent_id, session, **kwargs):
+    """A spawn the hook judges, then the start event Claude Code sends if it ran."""
+    proc = spawn(home, session=session, **kwargs)
+    if decision(proc) is None:
+        start(home, agent_id, session=session,
+              agent_type=kwargs.get("subagent_type") or "general-purpose")
+    return decision(proc)
+
+
+def test_inflight(home):
+    print("agents in flight")
+    # A burst window of 0 switches the burst rule off, which is exactly the
+    # spaced-out fan-out the in-flight rule exists for.
+    set_config(home, {"burst_window_seconds": 0})
+
+    register_inflight(home, None)
+    check("with no registration, spaced spawns all pass",
+          [spawn_and_start(home, "a%d" % i, "f0") for i in range(3)], [None] * 3)
+    check("and nothing is recorded as running", running_of(home, "f0"), {})
+    register_inflight(home, {"hooks": {"SubagentStop": hook_entry()}})
+    check("SubagentStop alone does not turn the rule on",
+          [spawn_and_start(home, "b%d" % i, "f0b") for i in range(2)], [None, None])
+    check("--status names the missing event",
+          "under SubagentStart to turn it on" in run(home, None, "--status").stdout_text,
+          True)
+
+    register_inflight(home)
+    check("the first spawn passes", spawn_and_start(home, "A", "f1"), None)
+    check("its start is recorded by agent_id", list(running_of(home, "f1")), ["A"])
+    proc = spawn(home, session="f1")
+    check("a second spawn while A runs is denied", decision(proc), "deny")
+    check("the denial says an agent is still running",
+          "still running" in proc.stdout_text, True)
+    proc = stop(home, "A", session="f1")
+    check("a stop exits 0 and prints no decision",
+          (proc.returncode, proc.stdout_text.strip()), (0, ""))
+    check("the stop removes A", running_of(home, "f1"), {})
+    check("the next spawn passes once A has finished",
+          spawn_and_start(home, "B", "f1"), None)
+    check("another session is not blocked by this one",
+          spawn_and_start(home, "C", "f2"), None)
+
+    check("a spawn that is allowed but never starts records nothing",
+          decision(spawn(home, session="f3")), None)
+    check("so the next spawn is not blocked by it",
+          spawn_and_start(home, "D", "f3"), None)
+    stop(home, "D", session="f3")
+    check("and D's stop leaves nothing running", running_of(home, "f3"), {})
+
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 2})
+    spawn_and_start(home, "old", "f4")
+    spawn_and_start(home, "new", "f4")
+    stop(home, "new", session="f4")
+    check("a stop removes its own agent, not the oldest", list(running_of(home, "f4")),
+          ["old"])
+    stop(home, "never-started", session="f4")
+    check("a stop for an unknown agent_id changes nothing", list(running_of(home, "f4")),
+          ["old"])
+    stop(home, "x", session="never-spawned")
+    check("a stop for a session with no state writes no file",
+          (home / ".claude" / "agent-spawn-budget" / "s-never-spawned.json").exists(),
+          False)
+    for body in ({"hook_event_name": "SubagentStop", "session_id": "f4"},
+                 {"hook_event_name": "SubagentStart", "session_id": "f4", "agent_id": 7},
+                 {"hook_event_name": "SubagentStop", "session_id": ["x"], "agent_id": "a"}):
+        proc = run(home, body, "--hook")
+        check("an event payload %r does not crash" % body,
+              (proc.returncode, proc.stdout_text.strip()), (0, ""))
+
+    set_config(home, {"burst_window_seconds": 0, "inflight_ttl_minutes": 30})
+    path = home / ".claude" / "agent-spawn-budget" / "s-f5.json"
+    path.write_text(json.dumps({"count": 1, "stamps": [],
+                                "inflight": {"long": time.time() - 31 * 60}}))
+    check("an agent past the TTL no longer counts", spawn_and_start(home, "E", "f5"), None)
+    check("its entry is kept until its own stop", sorted(running_of(home, "f5")),
+          ["E", "long"])
+    stop(home, "long", session="f5")
+    check("the long agent's stop removes only its own entry",
+          list(running_of(home, "f5")), ["E"])
+    check("so E still blocks the next spawn", decision(spawn(home, session="f5")), "deny")
+    path.write_text(json.dumps({"count": 1, "stamps": [],
+                                "inflight": {"lost": time.time() - 25 * 3600}}))
+    spawn(home, session="f5")
+    check("an entry past the 24 h keep horizon is dropped on the next write",
+          running_of(home, "f5"), {})
+    for junk in ("junk", [time.time()], {"a": "x", "b": True}):
+        path.write_text(json.dumps({"count": 1, "stamps": [], "inflight": junk}))
+        check("a malformed inflight field %r reads as none running" % (junk,),
+              decision(spawn(home, session="f5")), None)
+
+    set_config(home, {"burst_window_seconds": 0,
+                      "exempt_subagent_types": ["general-purpose"]})
+    check("a spawn naming no type is exempt as general-purpose",
+          [spawn_and_start(home, "g%d" % i, "f6") for i in range(2)], [None, None])
+    check("and its start records nothing", running_of(home, "f6"), {})
+    set_config(home, {"burst_max": 0, "exempt_subagent_types": ["general-purpose"]})
+    check("an untyped spawn passes a zero burst budget when general-purpose is exempt",
+          decision(spawn(home, session="f6b")), None)
+    set_config(home, {"burst_window_seconds": 0, "exempt_subagent_types": ["reviewer"]})
+    spawn_and_start(home, "H", "f7")
+    check("an exempt type passes while another runs",
+          spawn_and_start(home, "R", "f7", subagent_type="reviewer"), None)
+    stop(home, "R", session="f7", agent_type="reviewer")
+    check("the exempt agent's stop leaves H running", list(running_of(home, "f7")), ["H"])
+
+    set_config(home, {"burst_window_seconds": 0, "enforce": False})
+    spawn_and_start(home, "I", "f8")
+    proc = spawn(home, session="f8")
+    check("enforce false allows a spawn while one runs", decision(proc), None)
+    check("enforce false reports the in-flight denial",
+          "still running" in proc.stderr_text, True)
+
+    set_config(home, {"burst_window_seconds": 0})
+    spawn_and_start(home, "J", "f9")
+    run(home, None, "--allow", "one reviewer beside the running sweep",
+        "--spawns", "1", "--minutes", "15")
+    check("a grant lets a spawn through while one runs",
+          spawn_and_start(home, "K", "f9"), None)
+    check("the granted agent counts as running too", sorted(running_of(home, "f9")),
+          ["J", "K"])
+    run(home, None, "--revoke")
+
+    set_config(home, {"burst_window_seconds": 0, "inflight_ttl_minutes": 0})
+    proc = spawn(home, session="f10")
+    check("inflight_ttl_minutes 0 warns", "counts no running agent" in proc.stderr_text, True)
+    check("inflight_ttl_minutes 0 turns the rule off",
+          [spawn_and_start(home, "t%d" % i, "f10") for i in range(2)], [None, None])
+    check("--status says so",
+          "off (inflight_ttl_minutes is 0)" in run(home, None, "--status").stdout_text, True)
+
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 0})
+    check("inflight_max 0 switches the rule off",
+          [spawn_and_start(home, "z%d" % i, "f11") for i in range(3)], [None] * 3)
+
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 2})
+    check("inflight_max 2 allows two and denies the third",
+          [spawn_and_start(home, "m%d" % i, "f12") for i in range(3)],
+          [None, None, "deny"])
+
+    set_config(home, {"burst_window_seconds": 0})
+    check("--status says the rule is on",
+          "In-flight rule: on" in run(home, None, "--status").stdout_text, True)
+    register_inflight(home, {"hooks": {
+        "SubagentStart": [{"hooks": [{"type": "command", "command": "echo 'unclosed"},
+                                     {"type": "command",
+                                      "command": "python3 /x/agent_spawn_budget.py"}]}],
+        "SubagentStop": hook_entry()}})
+    check("an unparseable command does not hide a valid one beside it",
+          "In-flight rule: on" in run(home, None, "--status").stdout_text, True)
+    register_inflight(home, {"hooks": {"SubagentStart": hook_entry("python3 /x/test_agent_spawn_budget.py"),
+                                       "SubagentStop": hook_entry()}})
+    check("a command naming a different file does not count",
+          [spawn_and_start(home, "n%d" % i, "f13") for i in range(2)], [None, None])
+    (home / ".claude" / "settings.json").write_text("{ not json")
+    check("a broken settings file turns the rule off, not the hook",
+          [spawn_and_start(home, "o%d" % i, "f14") for i in range(2)], [None, None])
+    register_inflight(home, None)
+
+    local = home / ".claude" / "settings.local.json"
+    local.write_text(json.dumps(INFLIGHT_SETTINGS))
+    check("--status run from the project folder sees a project registration",
+          "In-flight rule: on" in run(home, None, "--status").stdout_text, True)
+    local.unlink()
+
+    project = home / "inflight-project"
+    (project / ".claude").mkdir(parents=True, exist_ok=True)
+    (project / ".claude" / "settings.local.json").write_text(json.dumps(INFLIGHT_SETTINGS))
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "CLAUDE_PROJECT_DIR": str(project)}
+
+    def hook(body):
+        proc = subprocess.run([sys.executable, str(HOOK), "--hook"], input=json.dumps(body),
+                              capture_output=True, text=True, env=env, cwd=str(home))
+        return "deny" if proc.stdout.strip() else None
+
+    results = [hook(payload_for(session="f15"))]
+    hook({"session_id": "f15", "hook_event_name": "SubagentStart", "agent_id": "P",
+          "agent_type": "general-purpose"})
+    results.append(hook(payload_for(session="f15")))
+    check("a registration in the project's settings.local.json turns the rule on",
+          results, [None, "deny"])
+    set_config(home, {})
+
+
+def test_deleted_working_directory(home):
+    print("a deleted working directory")
+    set_config(home, {})
+    gone = home / "gone"
+    gone.mkdir()
+    proc = subprocess.Popen([sys.executable, str(HOOK), "--hook"], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            env={"HOME": str(home), "PATH": "/usr/bin:/bin"}, cwd=str(gone),
+                            preexec_fn=lambda: os.rmdir(str(gone)))
+    out, err = proc.communicate(json.dumps(payload_for(session="gone")))
+    check("the hook exits 0 from a deleted working directory", proc.returncode, 0)
+    check("and still judges the spawn by the home config",
+          (out.strip(), "Traceback" in err), ("", False))
+
+
+def test_inflight_concurrency(home):
+    print("agents in flight, concurrently")
+    register_inflight(home)
+    set_config(home, {"burst_max": 99, "inflight_max": 99})
+    procs = [run(home, None, "--hook", wait=False) for _ in range(8)]
+    for i, proc in enumerate(procs):
+        proc.communicate(json.dumps({"session_id": "land", "agent_id": "c%d" % i,
+                                     "hook_event_name": "SubagentStart",
+                                     "agent_type": "general-purpose"}))
+    check("eight starts at once record all eight", len(running_of(home, "land")), 8)
+    procs = [run(home, None, "--hook", wait=False) for _ in range(8)]
+    for i, proc in enumerate(procs):
+        proc.communicate(json.dumps({"session_id": "land", "agent_id": "c%d" % i,
+                                     "hook_event_name": "SubagentStop"}))
+    check("eight stops at once remove all eight", running_of(home, "land"), {})
+    register_inflight(home, None)
+    set_config(home, {})
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp)
@@ -486,6 +742,9 @@ def main():
         test_grant_bounds(home)
         test_prune_holds_the_lock(home)
         test_status_survives_a_vanishing_entry(home)
+        test_inflight(home)
+        test_inflight_concurrency(home)
+        test_deleted_working_directory(home)
         test_status(home)
 
     if FAILURES:
