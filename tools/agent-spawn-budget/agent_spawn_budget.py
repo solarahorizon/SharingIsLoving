@@ -81,7 +81,7 @@ DEFAULTS = {
     "enforce": True,
     # Deny a spawn while this many agents of the session are still running.
     # Spacing spawns out passes the burst rule; this one it does not. 0 disables.
-    "inflight_max": 1,
+    "inflight_max": 2,
     # Any running agent stops counting after this long, whether it is still
     # working or its stop was lost. 0 counts nothing, so the rule is off.
     "inflight_ttl_minutes": 30,
@@ -466,8 +466,8 @@ def find_problem(cfg, tool_input, count, window, running, now):
             "is %d at a time. The oldest started %d seconds ago.\n"
             "Starting agents a minute apart is still a fan-out: they all run "
             "at once and each one is paid for.\n"
-            "Wait for the running agent's result, then decide the next spawn, "
-            "or fold the next task into the running agent's brief next time. "
+            "Wait for a running agent's result, then decide the next spawn, "
+            "or fold the next task into a running agent's brief next time. "
             "A running agent stops counting after %d minutes."
             % (len(running), cfg["inflight_max"], now - running[0],
                cfg["inflight_ttl_minutes"])

@@ -517,7 +517,7 @@ def test_inflight(home):
     print("agents in flight")
     # A burst window of 0 switches the burst rule off, which is exactly the
     # spaced-out fan-out the in-flight rule exists for.
-    set_config(home, {"burst_window_seconds": 0})
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1})
 
     register_inflight(home, None)
     check("with no registration, spaced spawns all pass",
@@ -573,7 +573,7 @@ def test_inflight(home):
         check("an event payload %r does not crash" % body,
               (proc.returncode, proc.stdout_text.strip()), (0, ""))
 
-    set_config(home, {"burst_window_seconds": 0, "inflight_ttl_minutes": 30})
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1, "inflight_ttl_minutes": 30})
     path = home / ".claude" / "agent-spawn-budget" / "s-f5.json"
     path.write_text(json.dumps({"count": 1, "stamps": [],
                                 "inflight": {"long": time.time() - 31 * 60}}))
@@ -594,7 +594,7 @@ def test_inflight(home):
         check("a malformed inflight field %r reads as none running" % (junk,),
               decision(spawn(home, session="f5")), None)
 
-    set_config(home, {"burst_window_seconds": 0,
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1,
                       "exempt_subagent_types": ["general-purpose"]})
     check("a spawn naming no type is exempt as general-purpose",
           [spawn_and_start(home, "g%d" % i, "f6") for i in range(2)], [None, None])
@@ -602,21 +602,21 @@ def test_inflight(home):
     set_config(home, {"burst_max": 0, "exempt_subagent_types": ["general-purpose"]})
     check("an untyped spawn passes a zero burst budget when general-purpose is exempt",
           decision(spawn(home, session="f6b")), None)
-    set_config(home, {"burst_window_seconds": 0, "exempt_subagent_types": ["reviewer"]})
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1, "exempt_subagent_types": ["reviewer"]})
     spawn_and_start(home, "H", "f7")
     check("an exempt type passes while another runs",
           spawn_and_start(home, "R", "f7", subagent_type="reviewer"), None)
     stop(home, "R", session="f7", agent_type="reviewer")
     check("the exempt agent's stop leaves H running", list(running_of(home, "f7")), ["H"])
 
-    set_config(home, {"burst_window_seconds": 0, "enforce": False})
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1, "enforce": False})
     spawn_and_start(home, "I", "f8")
     proc = spawn(home, session="f8")
     check("enforce false allows a spawn while one runs", decision(proc), None)
     check("enforce false reports the in-flight denial",
           "still running" in proc.stderr_text, True)
 
-    set_config(home, {"burst_window_seconds": 0})
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1})
     spawn_and_start(home, "J", "f9")
     run(home, None, "--allow", "one reviewer beside the running sweep",
         "--spawns", "1", "--minutes", "15")
@@ -638,12 +638,12 @@ def test_inflight(home):
     check("inflight_max 0 switches the rule off",
           [spawn_and_start(home, "z%d" % i, "f11") for i in range(3)], [None] * 3)
 
-    set_config(home, {"burst_window_seconds": 0, "inflight_max": 2})
-    check("inflight_max 2 allows two and denies the third",
+    set_config(home, {"burst_window_seconds": 0})
+    check("by default two run at once and the third is denied",
           [spawn_and_start(home, "m%d" % i, "f12") for i in range(3)],
           [None, None, "deny"])
 
-    set_config(home, {"burst_window_seconds": 0})
+    set_config(home, {"burst_window_seconds": 0, "inflight_max": 1})
     check("--status says the rule is on",
           "In-flight rule: on" in run(home, None, "--status").stdout_text, True)
     register_inflight(home, {"hooks": {

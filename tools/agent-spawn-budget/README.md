@@ -2,7 +2,7 @@
 
 A stdlib-only Python hook that sits in front of Claude Code's `Agent` tool. It
 denies a spawn when too many start in quick succession, denies a spawn while
-another agent of the same session is still running, and denies a spawn that
+two agents of the same session are still running, and denies a spawn that
 does not say which model to run. One file, no dependencies.
 
 ## The problem
@@ -141,7 +141,7 @@ missing event when it is not.
 
 | Rule | Default | Why |
 |---|---|---|
-| `inflight_max` | 1 | Deny a spawn while this many agents of the session are still running. Spacing spawns a minute apart gets past a burst limit; the agents still all run at once. This rule counts what is running, not how fast it started. `0` switches it off. |
+| `inflight_max` | 2 | Deny a spawn while this many agents of the session are still running. Two at once buys some speed without a fan-out. For one at a time, set it and `burst_max` to `1`, because agents sent in one message are capped by `burst_max` (see the limits below). Spacing spawns a minute apart gets past a burst limit; the agents still all run at once. This rule counts what is running, not how fast it started. `0` switches it off. |
 | `inflight_ttl_minutes` | 30 | A running agent stops counting after this long, so a lost stop event cannot block a session for good. An agent still working past it no longer counts either. `0` counts nothing, so the rule is off, and the hook warns. |
 | `burst_max` in `burst_window_seconds` | 2 in 120s | Six at once is six conversations paid for, not one. `burst_max: 0` denies every spawn, so switch the rule off with a number above any real fan-out instead. |
 | `require_explicit_model` | on | Where neither the agent definition nor a configured default names a model, an unset one inherits the parent session's, the priciest in play. |
@@ -203,14 +203,14 @@ with no signal; keep the state on a local disk. And the hook sees only the
 definition or a configured default would have supplied it.
 
 Two more belong to the in-flight rule. It counts an agent from its
-`SubagentStart` event, so it relies on that event reaching the hook before the
-next spawn is judged. Measured on Claude Code 2.1.270 with a two-call
-background batch, it does: the start fired right after the spawn was allowed,
-before the next call was judged. Two spawns
-judged at the same instant could both pass; the burst
-rule still caps such a batch at `burst_max`. And an agent that runs longer than
-`inflight_ttl_minutes` stops counting while it still runs, so raise the TTL if
-your agents run long.
+`SubagentStart` event, and that event can reach the hook after the next spawn
+is judged. On Claude Code 2.1.270, two `Agent` calls sent in one message were
+both allowed with `inflight_max` at 1: the first agent's start arrived 0.09 s
+after the second spawn was judged. So agents sent together can pass the
+in-flight rule as a batch, and the burst rule is what caps that batch at
+`burst_max`. Keep `burst_max` no higher than `inflight_max`. And an agent that
+runs longer than `inflight_ttl_minutes` stops counting while it still runs, so
+raise the TTL if your agents run long.
 
 ## Licence
 
