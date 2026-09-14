@@ -479,8 +479,8 @@ def find_problem(cfg, tool_input, count, window, running, now):
             "Each agent runs its own conversation and re-reads its own context "
             "on every turn, so six at once is six conversations paid for, not "
             "one. Parallel agents buy wall-clock time, not tokens.\n"
-            "Do the work in this session, or start them one at a time and let "
-            "each finish."
+            "Do the work in this session, or wait for the agents already "
+            "started to finish."
             % (len(window), cfg["burst_window_seconds"], cfg["burst_max"])
         )
     if cfg["session_max"] and count >= cfg["session_max"]:
