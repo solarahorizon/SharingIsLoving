@@ -565,7 +565,8 @@ def run_hook(cfg):
 
     deny(problem + "\n\nIf this fan-out is genuinely worth it, put the reason "
          "on record and try again:\n"
-         "  agent_spawn_budget.py --allow \"<why>\" --spawns <n> --minutes 15")
+         "  python3 %s --allow \"<why>\" --spawns <n> --minutes 15"
+         % shlex.quote(str(Path(__file__).absolute())))
 
 
 def read_records(path):
