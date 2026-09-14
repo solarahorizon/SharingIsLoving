@@ -537,6 +537,8 @@ def test_inflight(home):
     check("a second spawn while A runs is denied", decision(proc), "deny")
     check("the denial says an agent is still running",
           "still running" in proc.stdout_text, True)
+    check("the denial names this script's own path for --allow",
+          "python3 %s --allow" % HOOK.absolute() in proc.stdout_text, True)
     proc = stop(home, "A", session="f1")
     check("a stop exits 0 and prints no decision",
           (proc.returncode, proc.stdout_text.strip()), (0, ""))

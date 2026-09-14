@@ -172,7 +172,7 @@ binds it up front. Fanning out stays possible. Fanning out by accident does not.
 python3 agent_spawn_budget.py --report    # measure your own spawn history and its cost
 python3 agent_spawn_budget.py --status    # config, per-session counters, any live grant
 python3 agent_spawn_budget.py --revoke    # cancel a grant early
-python3 test_agent_spawn_budget.py        # 178 self-tests, no network, throwaway HOME
+python3 test_agent_spawn_budget.py        # 179 self-tests, no network, throwaway HOME
 ```
 
 `--report` reads `~/.claude/projects/**/*.jsonl` on your own machine and prints
