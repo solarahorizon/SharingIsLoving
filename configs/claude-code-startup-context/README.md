@@ -101,8 +101,9 @@ PY
 
 **A high count is not proof that you need a tool.** On the machine this came from,
 `Monitor` showed 519 calls across 104 sessions, which looks essential. It was not: a rule
-in that machine's own `CLAUDE.md` said never to poll in bash and to use `Monitor` instead,
-so every agent read the line and complied. The rule manufactured the demand. A Bash call
+in that machine's own `CLAUDE.md` used the word "monitor" for a different job, and once a
+tool with that name shipped, agents read the word as the tool. The rule's wording
+manufactured the demand. A Bash call
 with `run_in_background` does the same job for nothing. **Check whether your own
 instructions are generating the usage before you read a count as a requirement.**
 
