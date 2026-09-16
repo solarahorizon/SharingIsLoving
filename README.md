@@ -38,6 +38,7 @@ Most AI workflow content is theoretical — what someone wishes were true, polis
 ### `configs/` — settings snippets that survived contact with reality
 
 - **[configs/claude-code-vendor-swap/](configs/claude-code-vendor-swap/)** — point ONE Claude Code project at an Anthropic-compatible vendor endpoint (Qwen, Kimi) while every other project stays on your Claude subscription. Three settings in that project's `settings.local.json`, key in a `chmod 700` script outside any repo via `apiKeyHelper`. Both configs ran in production; the README carries the verification step (read the JSON `modelUsage` key, never the model's self-report or the status line) and the traps hit for real, including the Moonshot endpoint/key-type mismatch that returns a misleading 401.
+- **[configs/claude-code-startup-context/](configs/claude-code-startup-context/)** — five always-loaded tools denied and one env setting added in `~/.claude/settings.json`, with the method used to measure what they cost. Claude Code re-sends its startup context on **every turn**; since 2.1.69 most built-ins are *deferred* (the prompt carries the name, the schema arrives on demand), but `Artifact`, the largest single item, is not. The README carries the token-floor measurement, the two traps that cost real time, what replaced each denied tool, and a script to count your own usage first. Includes the warning that earned it: a 519-call tool looked essential until the calls turned out to come from a word in our own rule file.
 
 ---
 
