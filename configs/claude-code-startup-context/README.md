@@ -46,8 +46,9 @@ claude -p "say ok" --model haiku --output-format json --setting-sources project 
 
 Measured on Anthropic's own tool-description prose, three blocks of 3,468, 20,459 and
 61,377 bytes cost 810, 4,863 and 14,579 tokens: **4.28, 4.21 and 4.21 bytes per token**,
-linear across an 18x size range, with zero run-to-run variation. Use **4.21** rather than a
-3.5 or 3.7 rule of thumb, which overstates the token count by about 14%.
+linear across an 18x size range, with zero run-to-run variation. Tool definitions are part
+JSON schema, which packs more tokens into each byte than prose, so measure your own block
+rather than borrowing a ratio.
 
 **Two caveats that cost real time:**
 
@@ -65,7 +66,7 @@ linear across an 18x size range, with zero run-to-run variation. Use **4.21** ra
 |---|---|
 | `Artifact` | Publishes pages to claude.ai. A local skill renders the same page to a file in the repo instead. See [`skills/local-artifact/`](../../skills/local-artifact/). |
 | `SendFeedback` | Drafts bug reports to the vendor. Nothing depended on it. |
-| `Workflow` | A two-leg review gate already ran on every commit. **0 calls in 127,325 tool calls across 1,311 session transcripts.** |
+| `Workflow` | A two-leg review gate already ran on every commit. **0 calls in 125,338 tool calls across 1,287 session transcripts.** |
 | `ReportFindings` | Same gate, which writes its own records. **0 calls** in the same sweep. |
 | `ScheduleWakeup` | Long waits run on a cron heartbeat instead. |
 
@@ -114,6 +115,7 @@ To confirm a tool is gone, start a new session and check that its name is absent
 tool list in that session's `.jsonl` under `~/.claude/projects/`.
 
 `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1` is included because that machine's own `CLAUDE.md`
-already carried its git rules. **It did not reproduce as a saving under a controlled probe**
-(35,092 tokens with and without), so treat it as a de-duplication of instructions rather
-than as a measured win.
+already carried its git rules. It removed **2,011 tokens** from a `-p` run. **When you test it,
+unset it in the shell first:** a child `claude -p` inherits environment variables from the
+shell that launched it, so if your shell already exports the variable, the "without" run is
+not without it and the two runs read the same.
