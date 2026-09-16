@@ -1,0 +1,15 @@
+{
+  "_comment": "Merge these into ~/.claude/settings.json. Read the README before you do. Every entry is off because a replacement was already running on this machine; none of it is a general recommendation.",
+  "permissions": {
+    "deny": [
+      "Artifact",
+      "SendFeedback",
+      "Workflow",
+      "ReportFindings",
+      "ScheduleWakeup"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1"
+  }
+}
