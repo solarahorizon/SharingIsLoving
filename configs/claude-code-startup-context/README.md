@@ -46,19 +46,8 @@ claude -p "say ok" --model haiku --output-format json --setting-sources project 
 
 Measured on Anthropic's own tool-description prose, three blocks of 3,468, 20,459 and
 61,377 bytes cost 810, 4,863 and 14,579 tokens: **4.28, 4.21 and 4.21 bytes per token**,
-linear across an 18x size range, with zero run-to-run variation.
-
-**The ratio depends on what you are weighing, so do not reuse one number for everything.**
-A tool definition is roughly one third description prose and two thirds JSON parameter
-schema, and the schema tokenizes denser:
-
-| Material | bytes per token |
-|---|---|
-| description prose | 4.21 |
-| JSON parameter schema | 3.74 |
-| a full tool definition | 3.86 |
-
-Better still, skip the divisor. Append the **real** definition and read the meter.
+linear across an 18x size range, with zero run-to-run variation. Use **4.21** rather than a
+3.5 or 3.7 rule of thumb, which overstates the token count by about 14%.
 
 **Two caveats that cost real time:**
 
@@ -69,37 +58,6 @@ Better still, skip the divisor. Append the **real** definition and read the mete
 2. **Compare only within one probe.** Baselines shift with the working directory, the
    project's `CLAUDE.md`, and the skill and agent catalogues. A figure from one setup is not
    comparable to a figure from another.
-
-## Where the real definitions are, and the trap in them
-
-Every `prompt_snapshot` record in `~/.claude/projects/**/*.jsonl` carries the tool
-definitions the server was sent. That is ground truth, and it is better than any estimate.
-
-```python
-import json, glob, os
-for f in glob.glob(os.path.expanduser('~/.claude/projects/**/*.jsonl'), recursive=True):
-    for line in open(f, errors='ignore'):
-        if '"attachment"' not in line or '"tools"' not in line:
-            continue
-        try:
-            tools = (json.loads(line).get('attachment') or {}).get('tools') or []
-        except ValueError:
-            continue
-        for t in tools:
-            spec = t.get('schema') or {}
-            if 'input_schema' in spec:
-                print(t['name'], len(json.dumps(spec, separators=(',', ':'))))
-```
-
-**Measure `.schema` and nothing else.** The record stores each description **twice**, once
-loose on the entry and again inside `.schema`, which is the real wire spec
-(`name` + `description` + `input_schema`). Serialising the whole entry double-counts the
-description and can overstate a large tool by more than 60%.
-
-**Sizes change between releases, in both directions.** One tool measured across 415
-snapshots: 41,336 bytes on 2.1.266, 37,409 on 2.1.267, 38,527 on 2.1.268, 46,651 on 2.1.270.
-Two different sizes shipped under 2.1.273 on the same day. None of that is in the changelog,
-which is why this is worth re-running after an update rather than measuring once.
 
 ## What was turned off, and what replaced it
 
