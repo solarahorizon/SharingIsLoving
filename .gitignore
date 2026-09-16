@@ -1,2 +1,4 @@
+# Local review-gate state and worktrees: never published.
 worktrees/
+docs/dev-review/
 .DS_Store
