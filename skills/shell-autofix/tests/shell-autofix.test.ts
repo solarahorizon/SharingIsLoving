@@ -14,7 +14,7 @@ describe('rewritten', () => {
   })
 
   test('drops 2>/dev/null', () => {
-    expect(choose('ls -la /r/build_logs/.py-heavy-lock 2>/dev/null')?.command).toBe('ls -la /r/build_logs/.py-heavy-lock')
+    expect(choose('ls -la /r/build/.lock 2>/dev/null')?.command).toBe('ls -la /r/build/.lock')
     expect(choose('ls /r 2> /dev/null; ls /s')?.command).toBe('ls /r ; ls /s')
     expect(choose('ls /r 2>/dev/null;')?.command).toBe('ls /r ;')
   })

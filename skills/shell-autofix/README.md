@@ -44,12 +44,14 @@ allows on the first try. Small on purpose: it is the version we trust. Most refu
 
 Requirements: Claude Code with mod support (built and tested on 2.1.289; check with
 `claude --version`). It only helps if you run a PreToolUse hook that refuses these shapes;
-without one, it has nothing to save you from.
+without one, it has nothing to save you from. A matching hook ships in this repo:
+`skills/autonomous-block/hooks/pre-bash-discipline.py`.
 
 Claude Code loads a plugin it finds in `~/.claude/skills/<name>` in every project and reloads it
 when its files change. Copy or link this folder there:
 
 ```bash
+git clone https://github.com/solarahorizon/SharingIsLoving.git /path/to/SharingIsLoving
 ln -s /path/to/SharingIsLoving/skills/shell-autofix ~/.claude/skills/shell-autofix
 claude plugin validate ~/.claude/skills/shell-autofix
 claude plugin test ~/.claude/skills/shell-autofix
