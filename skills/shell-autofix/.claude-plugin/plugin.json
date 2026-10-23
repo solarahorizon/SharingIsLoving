@@ -1,0 +1,6 @@
+{
+  "name": "shell-autofix",
+  "version": "0.1.0",
+  "description": "Rewrites Bash commands a shell-discipline hook would deny into their allowed form, then sends them on",
+  "author": { "name": "Solara Horizon" }
+}
