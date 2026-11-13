@@ -1,0 +1,5 @@
+{
+  "name": "wait-compact",
+  "version": "0.1.0",
+  "description": "Compacts the main conversation when a turn ends with the context large and the session then sits idle, waiting on background work, a scheduled wake-up or the user"
+}
