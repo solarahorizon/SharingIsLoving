@@ -20,9 +20,8 @@ Two questions decide it: *Is it in real use?* and *Did I earn it the hard way (c
 
 Top-level folders are categories. A category is born when its first real artefact lands — empty category folders aren't created ahead of need.
 
-- `skills/` — Claude Code skills (e.g. `autonomous-block`)
+- `skills/` — Claude Code skills (e.g. `autonomous-block`) and mods, which Claude Code also loads from a skills folder (e.g. `wait-compact`)
 - `tools/` — standalone scripts/utilities (e.g. `ai-art-cleanup`)
-- `mods/` — Claude Code mods: a folder with `.claude-plugin/plugin.json` and a hooks module (e.g. `wait-compact`)
 - `patterns/` — reusable recipes that aren't a packaged skill or tool *(when the first lands)*
 - `configs/` — hooks, settings snippets, CI gates (e.g. `claude-code-vendor-swap`)
 
