@@ -31,13 +31,13 @@ is usually a long one, and the cache is still warm when the compaction reads it.
 
 ## What it saved
 
-One Mac, 3 to 13 November 2026, list prices for the model in use, the official
-five-minute cache line:
+One Mac, 10 to 24 November 2026, Opus 5.5 list rates, the official five-minute
+cache line:
 
-- 273 compactions priced; 10 of them too early (the next message came within five minutes)
-- median wait after a compaction: 12 minutes
-- the next message stored about 26,000 tokens instead of 148,000
-- $143 saved against $2,011 of main-agent spend, about 7%
+- 825 compactions priced; 19 of them too early (the next message came within five minutes)
+- median wait from the end of the turn, when it compacted: 12 minutes
+- the next message stored about 27,000 tokens instead of 150,000
+- $443 saved against $3,081 of main-agent spend, about 14%
 
 Priced per compaction as: with the mod, one cached read of the conversation,
 the summary's output, and the next call as it really ran; without it, a full
@@ -80,7 +80,7 @@ and price your own:
   open questions, but anything else the conversation held is gone.
 - **It cannot see the future.** A reply that lands between four and five
   minutes finds a compacted conversation that did not need compacting. That
-  was 10 of 273 here.
+  was 19 of 825 here.
 - **It also fires while you read.** A long reply you take six minutes over
   counts as a wait.
 
